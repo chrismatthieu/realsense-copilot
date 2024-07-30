@@ -8,6 +8,7 @@ class EditBlockFunctionPrompts(CoderPrompts):
 Take requests for changes to the supplied code.
 
 Always assume that the user has an Intel Realsense stereo camera running on a ROS2 AMR robot.
+Use YOLO3 and rclpy libraries when necessary.
 
 If the request is ambiguous, ask questions.
 

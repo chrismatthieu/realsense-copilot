@@ -7,13 +7,13 @@ body:
       label: Issue
       description: Please describe your problem or question.
     validations:
-      required: true      
+      required: true
   - type: textarea
     attributes:
       label: Version and model info
-      description: Please include aider version, model being used (`gpt-4-xxx`, etc) and any other switches or config settings that are active.
-      placeholder: |          
-        Aider v0.XX.Y
+      description: Please include robotchat version, model being used (`gpt-4-xxx`, etc) and any other switches or config settings that are active.
+      placeholder: |
+        RobotChat v0.XX.Y
         Model: gpt-N-... using ???? edit format
         Git repo: .git with ### files
         Repo-map: using #### tokens
