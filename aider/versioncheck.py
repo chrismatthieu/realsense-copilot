@@ -21,7 +21,7 @@ def check_version(io, just_check=False):
     import requests
 
     try:
-        response = requests.get("https://pypi.org/pypi/aider-chat/json")
+        response = requests.get("https://pypi.org/pypi/robot-chat/json")
         data = response.json()
         latest_version = data["info"]["version"]
         current_version = aider.__version__
@@ -50,10 +50,10 @@ def check_version(io, just_check=False):
     if not is_update_available:
         return False
 
-    cmd = utils.get_pip_install(["--upgrade", "aider-chat"])
+    cmd = utils.get_pip_install(["--upgrade", "robot-chat"])
 
     text = f"""
-Newer aider version v{latest_version} is available. To upgrade, run:
+Newer RobotChat version v{latest_version} is available. To upgrade, run:
 
     {' '.join(cmd)}
 """
@@ -62,7 +62,7 @@ Newer aider version v{latest_version} is available. To upgrade, run:
     if io.confirm_ask("Run pip install?"):
         success, _output = utils.run_install(cmd)
         if success:
-            io.tool_output("Re-run aider to use new version.")
+            io.tool_output("Re-run robotchat to use new version.")
             sys.exit()
 
     return True

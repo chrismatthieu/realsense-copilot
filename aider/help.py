@@ -15,7 +15,7 @@ warnings.simplefilter("ignore", category=FutureWarning)
 
 def install_help_extra(io):
     pip_install_cmd = [
-        "aider-chat[help]",
+        "robot-chat[help]",
         "--extra-index-url",
         "https://download.pytorch.org/whl/cpu",
     ]
@@ -53,7 +53,7 @@ def fname_to_url(filepath):
         elif filepath.endswith(md):
             filepath = filepath[: -len(md)] + ".html"
 
-        docid = "https://aider.chat/" + filepath
+        docid = "https://robot.chat/" + filepath
 
     return docid
 

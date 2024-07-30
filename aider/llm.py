@@ -4,8 +4,8 @@ import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
-os.environ["OR_SITE_URL"] = "http://aider.chat"
-os.environ["OR_APP_NAME"] = "Aider"
+os.environ["OR_SITE_URL"] = "http://robot.chat"
+os.environ["OR_APP_NAME"] = "RobotChat"
 
 # `import litellm` takes 1.5 seconds, defer it!
 

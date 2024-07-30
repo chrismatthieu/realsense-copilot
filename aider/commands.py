@@ -64,7 +64,7 @@ class Commands:
 
         show_formats = OrderedDict(
             [
-                ("help", "Get help about using aider (usage, config, troubleshoot)."),
+                ("help", "Get help about using robotchat (usage, config, troubleshoot)."),
                 ("ask", "Ask questions about your code without making any changes."),
                 ("code", "Ask for changes to your code (using the best edit format)."),
             ]
@@ -368,7 +368,7 @@ class Commands:
         self.io.tool_output(f"{cost_pad}{fmt(limit)} tokens max context window size")
 
     def cmd_undo(self, args):
-        "Undo the last git commit if it was done by aider"
+        "Undo the last git commit if it was done by robotchat"
         if not self.coder.repo:
             self.io.tool_error("No git repository found.")
             return
@@ -417,7 +417,7 @@ class Commands:
         last_commit_hash = self.coder.repo.repo.head.commit.hexsha[:7]
         last_commit_message = self.coder.repo.repo.head.commit.message.strip()
         if last_commit_hash not in self.coder.aider_commit_hashes:
-            self.io.tool_error("The last commit was not made by aider in this chat session.")
+            self.io.tool_error("The last commit was not made by robotchat in this chat session.")
             self.io.tool_error(
                 "You could try `/git reset --hard HEAD^` but be aware that this is a destructive"
                 " command!"
@@ -442,7 +442,7 @@ class Commands:
             return prompts.undo_command_reply
 
     def cmd_diff(self, args=""):
-        "Display the diff of the last aider commit"
+        "Display the diff of the last robotchat commit"
         if not self.coder.repo:
             self.io.tool_error("No git repository found.")
             return
@@ -450,7 +450,7 @@ class Commands:
         last_commit_hash = self.coder.repo.repo.head.commit.hexsha[:7]
 
         if last_commit_hash not in self.coder.aider_commit_hashes:
-            self.io.tool_error(f"Last commit {last_commit_hash} was not an aider commit.")
+            self.io.tool_error(f"Last commit {last_commit_hash} was not an robotchat commit.")
             self.io.tool_error("You could try `/git diff` or `/git diff HEAD^`.")
             return
 
@@ -558,7 +558,7 @@ class Commands:
                 if is_image_file(matched_file) and not self.coder.main_model.accepts_images:
                     self.io.tool_error(
                         f"Cannot add image file {matched_file} as the"
-                        f" {self.coder.main_model.name} does not support image.\nYou can run `aider"
+                        f" {self.coder.main_model.name} does not support image.\nYou can run `robotchat"
                         " --4-turbo-vision` to use GPT-4 Turbo with Vision."
                     )
                     continue
@@ -749,10 +749,10 @@ class Commands:
             else:
                 self.io.tool_output(f"{cmd} No description available.")
         self.io.tool_output()
-        self.io.tool_output("Use `/help <question>` to ask questions about how to use aider.")
+        self.io.tool_output("Use `/help <question>` to ask questions about how to use robotchat.")
 
     def cmd_help(self, args):
-        "Ask questions about aider"
+        "Ask questions about robotchat"
 
         if not args.strip():
             self.basic_help()

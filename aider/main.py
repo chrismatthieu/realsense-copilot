@@ -547,7 +547,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         args.pretty = False
         io.tool_output("VSCode terminal detected, pretty output has been disabled.")
 
-    io.tool_output('Use /help <question> for help, run "aider --help" to see cmd line args')
+    io.tool_output('Use /help <question> for help, run "robotchat --help" to see cmd line args')
 
     if git_root and Path.cwd().resolve() != Path(git_root).resolve():
         io.tool_error(

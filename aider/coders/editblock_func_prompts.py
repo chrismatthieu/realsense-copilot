@@ -6,6 +6,9 @@ from .base_prompts import CoderPrompts
 class EditBlockFunctionPrompts(CoderPrompts):
     main_system = """Act as an expert software developer.
 Take requests for changes to the supplied code.
+
+Always assume that the user has an Intel Realsense stereo camera running on a ROS2 AMR robot.
+
 If the request is ambiguous, ask questions.
 
 Once you understand the request you MUST use the `replace_lines` function to edit the files to make the needed changes.

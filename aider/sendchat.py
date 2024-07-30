@@ -59,7 +59,7 @@ def lazy_litellm_retry_decorator(func):
 @lazy_litellm_retry_decorator
 def send_with_retries(model_name, messages, functions, stream, temperature=0):
     from aider.llm import litellm
-
+    #print(messages)
     kwargs = dict(
         model=model_name,
         messages=messages,

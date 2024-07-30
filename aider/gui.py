@@ -144,7 +144,7 @@ class GUI:
 
     def do_sidebar(self):
         with st.sidebar:
-            st.title("Aider")
+            st.title("RobotChat")
             # self.cmds_tab, self.settings_tab = st.tabs(["Commands", "Settings"])
 
             # self.do_recommended_actions()
@@ -155,7 +155,7 @@ class GUI:
             # st.write("### Experimental")
 
             st.warning(
-                "This browser version of aider is experimental. Please share feedback in [GitHub"
+                "This browser version of RobotChat is experimental. Please share feedback in [GitHub"
                 " issues](https://github.com/paul-gauthier/aider/issues)."
             )
 
@@ -163,7 +163,7 @@ class GUI:
         pass
 
     def do_recommended_actions(self):
-        text = "Aider works best when your code is stored in a git repo.  \n"
+        text = "RobotChat works best when your code is stored in a git repo.  \n"
         text += f"[See the FAQ for more info]({urls.git})"
 
         with st.expander("Recommended actions", expanded=True):
@@ -172,7 +172,7 @@ class GUI:
                 self.button("Create git repo", key=random.random(), help="?")
 
             with st.popover("Update your `.gitignore` file"):
-                st.write("It's best to keep aider's internal files out of your git repo.")
+                st.write("It's best to keep RobotChat's internal files out of your git repo.")
                 self.button("Add `.aider*` to `.gitignore`", key=random.random(), help="?")
 
     def do_add_to_chat(self):
@@ -189,7 +189,7 @@ class GUI:
             disabled=self.prompt_pending(),
             help=(
                 "Only add the files that need to be *edited* for the task you are working"
-                " on. Aider will pull in other relevant code to provide context to the LLM."
+                " on. RobotChat will pull in other relevant code to provide context to the LLM."
             ),
         )
 

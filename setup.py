@@ -36,7 +36,7 @@ print("Packages:", packages)
 extras = "dev help browser playwright".split()
 
 setup(
-    name="aider-chat",
+    name="robot-chat",
     version=__version__,
     packages=packages,
     include_package_data=True,
@@ -50,13 +50,13 @@ setup(
     python_requires=">=3.9,<3.13",
     entry_points={
         "console_scripts": [
-            "aider = aider.main:main",
+            "robotchat = aider.main:main",
         ],
     },
-    description="Aider is AI pair programming in your terminal",
+    description="RobotChat is AI pair programming in your terminal",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/paul-gauthier/aider",
+    url="https://github.com/chrismatthieu/robotchat",
     classifiers=[
         "Development Status :: 4 - Beta",
         "Environment :: Console",

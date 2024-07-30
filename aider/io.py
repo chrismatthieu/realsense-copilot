@@ -163,7 +163,7 @@ class InputOutput:
             self.console = Console(force_terminal=False, no_color=True)
 
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.append_chat_history(f"\n# aider chat started at {current_time}\n\n")
+        self.append_chat_history(f"\n# robot chat started at {current_time}\n\n")
 
     def read_image(self, filename):
         try:

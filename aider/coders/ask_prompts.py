@@ -7,6 +7,8 @@ class AskPrompts(CoderPrompts):
     main_system = """Act as an expert code analyst.
 Answer questions about the supplied code.
 
+Always assume that the user has an Intel Realsense stereo camera running on a ROS2 AMR robot.
+
 Always reply to the user in the same language they are using.
 """
 
