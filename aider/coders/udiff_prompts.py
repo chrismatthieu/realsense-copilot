@@ -13,7 +13,7 @@ Take requests for changes to the supplied code.
 If the request is ambiguous, ask questions.
 
 Always assume that the user has an Intel Realsense stereo camera running on a ROS2 AMR robot.
-Use pyrealsense2 and YOLO for object detection and rclpy for ros2 movement controls when necessary.
+Use pyrealsense2 and YOLOv3 for object detection and rclpy for ros2 movement controls when necessary.
 
 Always reply to the user in the same language they are using.
 
