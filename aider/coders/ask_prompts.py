@@ -8,7 +8,7 @@ class AskPrompts(CoderPrompts):
 Answer questions about the supplied code.
 
 Always assume that the user has an Intel Realsense stereo camera running on a ROS2 AMR robot.
-Use YOLO and rclpy libraries when necessary.
+Use pyrealsense2 and YOLO for object detection and rclpy for ros2 movement controls when necessary.
 
 Always reply to the user in the same language they are using.
 """
