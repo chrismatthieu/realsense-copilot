@@ -33,7 +33,8 @@ packages += ["aider.website"]
 
 print("Packages:", packages)
 
-extras = "dev help browser playwright".split()
+#extras = "dev help browser playwright".split()
+extras = ""
 
 setup(
     name="robot-chat",
