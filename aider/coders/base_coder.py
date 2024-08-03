@@ -56,7 +56,6 @@ class Coder:
     last_asked_for_commit_time = 0
     repo_map = None
     functions = None
-    total_cost = 0.0
     num_exhausted_context_windows = 0
     num_malformed_responses = 0
     last_keyboard_interrupt = None
@@ -117,6 +116,8 @@ class Coder:
                 done_messages=done_messages,
                 cur_messages=from_coder.cur_messages,
                 aider_commit_hashes=from_coder.aider_commit_hashes,
+                commands=from_coder.commands.clone(),
+                total_cost=from_coder.total_cost,
             )
 
             use_kwargs.update(update)  # override to complete the switch
@@ -191,8 +192,8 @@ class Coder:
         self,
         main_model,
         io,
+        repo=None,
         fnames=None,
-        git_dname=None,
         pretty=True,
         show_diffs=False,
         auto_commits=True,
@@ -204,22 +205,18 @@ class Coder:
         code_theme="default",
         stream=True,
         use_git=True,
-        voice_language=None,
-        aider_ignore_file=None,
         cur_messages=None,
         done_messages=None,
-        max_chat_history_tokens=None,
         restore_chat_history=False,
         auto_lint=True,
         auto_test=False,
         lint_cmds=None,
         test_cmd=None,
-        attribute_author=True,
-        attribute_committer=True,
-        attribute_commit_message=False,
         aider_commit_hashes=None,
         map_mul_no_files=8,
-        verify_ssl=True,
+        commands=None,
+        summarizer=None,
+        total_cost=0.0,
     ):
         if not fnames:
             fnames = []
@@ -235,6 +232,8 @@ class Coder:
         self.chat_completion_call_hashes = []
         self.chat_completion_response_hashes = []
         self.need_commit_before_edits = set()
+
+        self.total_cost = total_cost
 
         self.verbose = verbose
         self.abs_fnames = set()
@@ -272,23 +271,23 @@ class Coder:
 
         self.show_diffs = show_diffs
 
-        self.commands = Commands(self.io, self, voice_language, verify_ssl=verify_ssl)
+        self.commands = commands or Commands(self.io, self)
+        self.commands.coder = self
 
-        if use_git:
+        self.repo = repo
+        if use_git and self.repo is None:
             try:
                 self.repo = GitRepo(
                     self.io,
                     fnames,
-                    git_dname,
-                    aider_ignore_file,
+                    None,
                     models=main_model.commit_message_models(),
-                    attribute_author=attribute_author,
-                    attribute_committer=attribute_committer,
-                    attribute_commit_message=attribute_commit_message,
                 )
-                self.root = self.repo.root
             except FileNotFoundError:
-                self.repo = None
+                pass
+
+        if self.repo:
+            self.root = self.repo.root
 
         for fname in fnames:
             fname = Path(fname)
@@ -325,11 +324,9 @@ class Coder:
                 map_mul_no_files=map_mul_no_files,
             )
 
-        if max_chat_history_tokens is None:
-            max_chat_history_tokens = self.main_model.max_chat_history_tokens
-        self.summarizer = ChatSummary(
-            [self.main_model, self.main_model.weak_model],
-            max_chat_history_tokens,
+        self.summarizer = summarizer or ChatSummary(
+            [self.main_model.weak_model, self.main_model],
+            self.main_model.max_chat_history_tokens,
         )
 
         self.summarizer_thread = None
@@ -873,7 +870,7 @@ class Coder:
                     self.io.tool_error(f"BadRequestError: {br_err}")
                     return
                 except FinishReasonLength:
-                    # We hit the 4k output limit!
+                    # We hit the output limit!
                     if not self.main_model.can_prefill:
                         exhausted = True
                         break
@@ -1031,10 +1028,19 @@ class Coder:
         res = ""
         for fname in fnames:
             errors = self.linter.lint(self.abs_root_path(fname))
+
             if errors:
                 res += "\n"
                 res += errors
                 res += "\n"
+
+        # Commit any formatting changes that happened
+        if self.repo and self.auto_commits and not self.dry_run:
+            commit_res = self.repo.commit(
+                fnames=fnames, context="The linter made edits to these files", aider_edits=True
+            )
+            if commit_res:
+                self.show_auto_commit_outcome(commit_res)
 
         if res:
             self.io.tool_error(res)
@@ -1106,7 +1112,7 @@ class Coder:
 
     def send(self, messages, model=None, functions=None):
         if not model:
-            model = self.main_model.name
+            model = self.main_model
 
         self.partial_response_content = ""
         self.partial_response_function_call = dict()
@@ -1116,7 +1122,13 @@ class Coder:
         interrupted = False
         try:
             hash_object, completion = send_with_retries(
-                model, messages, functions, self.stream, self.temperature
+                model.name,
+                messages,
+                functions,
+                self.stream,
+                self.temperature,
+                extra_headers=model.extra_headers,
+                max_tokens=model.max_tokens,
             )
             self.chat_completion_call_hashes.append(hash_object.hexdigest())
 
@@ -1514,14 +1526,8 @@ class Coder:
         context = self.get_context_from_history(self.cur_messages)
         res = self.repo.commit(fnames=edited, context=context, aider_edits=True)
         if res:
+            self.show_auto_commit_outcome(res)
             commit_hash, commit_message = res
-            self.last_aider_commit_hash = commit_hash
-            self.aider_commit_hashes.add(commit_hash)
-            self.last_aider_commit_message = commit_message
-            if self.show_diffs:
-                self.commands.cmd_diff()
-
-            self.io.tool_output(f"You can use /undo to revert and discard commit {commit_hash}.")
             return self.gpt_prompts.files_content_gpt_edits.format(
                 hash=commit_hash,
                 message=commit_message,
@@ -1529,6 +1535,16 @@ class Coder:
 
         self.io.tool_output("No changes made to git tracked files.")
         return self.gpt_prompts.files_content_gpt_no_edits
+
+    def show_auto_commit_outcome(self, res):
+        commit_hash, commit_message = res
+        self.last_aider_commit_hash = commit_hash
+        self.aider_commit_hashes.add(commit_hash)
+        self.last_aider_commit_message = commit_message
+        if self.show_diffs:
+            self.commands.cmd_diff()
+
+        self.io.tool_output(f"You can use /undo to revert and discard commit {commit_hash}.")
 
     def dirty_commit(self):
         if not self.need_commit_before_edits:

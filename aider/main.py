@@ -12,7 +12,8 @@ from prompt_toolkit.enums import EditingMode
 from aider import __version__, models, utils
 from aider.args import get_parser
 from aider.coders import Coder
-from aider.commands import SwitchCoder
+from aider.commands import Commands, SwitchCoder
+from aider.history import ChatSummary
 from aider.io import InputOutput
 from aider.llm import litellm  # noqa: F401; properly init litellm on launch
 from aider.repo import GitRepo
@@ -248,7 +249,7 @@ def generate_search_path_list(default_fname, git_root, command_line_file):
     return files
 
 
-def register_models(git_root, model_settings_fname, io):
+def register_models(git_root, model_settings_fname, io, verbose=False):
     model_settings_files = generate_search_path_list(
         ".aider.model.settings.yml", git_root, model_settings_fname
     )
@@ -256,12 +257,20 @@ def register_models(git_root, model_settings_fname, io):
     try:
         files_loaded = models.register_models(model_settings_files)
         if len(files_loaded) > 0:
-            io.tool_output(f"Loaded {len(files_loaded)} model settings file(s)")
-            for file_loaded in files_loaded:
-                io.tool_output(f"  - {file_loaded}")  # noqa: E221
+            if verbose:
+                io.tool_output("Loaded model settings from:")
+                for file_loaded in files_loaded:
+                    io.tool_output(f"  - {file_loaded}")  # noqa: E221
+        elif verbose:
+            io.tool_output("No model settings files loaded")
     except Exception as e:
         io.tool_error(f"Error loading aider model settings: {e}")
         return 1
+
+    if verbose:
+        io.tool_output("Searched for model settings files:")
+        for file in model_settings_files:
+            io.tool_output(f"  - {file}")
 
     return None
 
@@ -280,15 +289,15 @@ def load_dotenv_files(git_root, dotenv_fname):
     return loaded
 
 
-def register_litellm_models(git_root, model_metadata_fname, io):
+def register_litellm_models(git_root, model_metadata_fname, io, verbose=False):
     model_metatdata_files = generate_search_path_list(
         ".aider.model.metadata.json", git_root, model_metadata_fname
     )
 
     try:
         model_metadata_files_loaded = models.register_litellm_models(model_metatdata_files)
-        if len(model_metadata_files_loaded) > 0:
-            io.tool_output(f"Loaded {len(model_metadata_files_loaded)} model metadata file(s)")
+        if len(model_metadata_files_loaded) > 0 and verbose:
+            io.tool_output("Loaded model metadata from:")
             for model_metadata_file in model_metadata_files_loaded:
                 io.tool_output(f"  - {model_metadata_file}")  # noqa: E221
     except Exception as e:
@@ -369,8 +378,9 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         launch_gui(argv)
         return
 
-    for fname in loaded_dotenvs:
-        io.tool_output(f"Loaded {fname}")
+    if args.verbose:
+        for fname in loaded_dotenvs:
+            io.tool_output(f"Loaded {fname}")
 
     all_files = args.files + (args.file or [])
     fnames = [str(Path(fn).resolve()) for fn in all_files]
@@ -442,8 +452,8 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if args.openai_organization_id:
         os.environ["OPENAI_ORGANIZATION"] = args.openai_organization_id
 
-    register_models(git_root, args.model_settings_file, io)
-    register_litellm_models(git_root, args.model_metadata_file, io)
+    register_models(git_root, args.model_settings_file, io, verbose=args.verbose)
+    register_litellm_models(git_root, args.model_metadata_file, io, verbose=args.verbose)
 
     if not args.model:
         args.model = "gpt-4o"
@@ -459,14 +469,38 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if args.show_model_warnings:
         models.sanity_check_models(io, main_model)
 
+    repo = None
+    if args.git:
+        try:
+            repo = GitRepo(
+                io,
+                fnames,
+                git_dname or ".",
+                args.aiderignore,
+                models=main_model.commit_message_models(),
+                attribute_author=args.attribute_author,
+                attribute_committer=args.attribute_committer,
+                attribute_commit_message=args.attribute_commit_message,
+                commit_prompt=args.commit_prompt,
+                subtree_only=args.subtree_only,
+            )
+        except FileNotFoundError:
+            pass
+
+    commands = Commands(io, None, verify_ssl=args.verify_ssl)
+
+    summarizer = ChatSummary(
+        [main_model.weak_model, main_model],
+        args.max_chat_history_tokens or main_model.max_chat_history_tokens,
+    )
+
     try:
         coder = Coder.create(
             main_model=main_model,
             edit_format=args.edit_format,
             io=io,
-            ##
+            repo=repo,
             fnames=fnames,
-            git_dname=git_dname,
             pretty=args.pretty,
             show_diffs=args.show_diffs,
             auto_commits=args.auto_commits,
@@ -478,18 +512,13 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             code_theme=args.code_theme,
             stream=args.stream,
             use_git=args.git,
-            voice_language=args.voice_language,
-            aider_ignore_file=args.aiderignore,
-            max_chat_history_tokens=args.max_chat_history_tokens,
             restore_chat_history=args.restore_chat_history,
             auto_lint=args.auto_lint,
             auto_test=args.auto_test,
             lint_cmds=lint_cmds,
             test_cmd=args.test_cmd,
-            attribute_author=args.attribute_author,
-            attribute_committer=args.attribute_committer,
-            attribute_commit_message=args.attribute_commit_message,
-            verify_ssl=args.verify_ssl,
+            commands=commands,
+            summarizer=summarizer,
         )
 
     except ValueError as err:

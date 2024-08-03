@@ -2,10 +2,12 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from collections import OrderedDict
 from pathlib import Path
 
 import git
+from PIL import ImageGrab
 
 from aider import models, prompts, voice
 from aider.help import Help, install_help_extra
@@ -148,7 +150,7 @@ class Commands:
 
         fun = getattr(self, f"completions_{cmd}", None)
         if not fun:
-            return []
+            return
         return sorted(fun())
 
     def get_commands(self):
@@ -229,11 +231,13 @@ class Commands:
 
         # If still no files, get all dirty files in the repo
         if not fnames and self.coder.repo:
-            fnames = [item.a_path for item in self.coder.repo.repo.index.diff(None)]
+            fnames = self.coder.repo.get_dirty_files()
 
         if not fnames:
             self.io.tool_error("No dirty files to lint.")
             return
+
+        fnames = [self.coder.abs_root_path(fname) for fname in fnames]
 
         lint_coder = None
         for fname in fnames:
@@ -789,6 +793,15 @@ class Commands:
             dict(role="user", content=user_msg),
             dict(role="assistant", content=assistant_msg),
         ]
+        self.coder.total_cost += coder.total_cost
+
+    def clone(self):
+        return Commands(
+            self.io,
+            None,
+            voice_language=self.voice_language,
+            verify_ssl=self.verify_ssl,
+        )
 
     def cmd_ask(self, args):
         "Ask questions about the code base without editing any files"
@@ -813,6 +826,7 @@ class Commands:
             dict(role="user", content=user_msg),
             dict(role="assistant", content=assistant_msg),
         ]
+        self.coder.total_cost += chat_coder.total_cost
 
     def get_help_md(self):
         "Show help about all commands in markdown"
@@ -879,6 +893,28 @@ class Commands:
             print()
 
         return text
+
+    def cmd_add_clipboard_image(self, args):
+        "Add an image from the clipboard to the chat"
+        try:
+            image = ImageGrab.grabclipboard()
+            if image is None:
+                self.io.tool_error("No image found in clipboard.")
+                return
+
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
+                image.save(temp_file.name, "PNG")
+                temp_file_path = temp_file.name
+
+            abs_file_path = Path(temp_file_path).resolve()
+            self.coder.abs_fnames.add(str(abs_file_path))
+            self.io.tool_output(f"Added clipboard image to the chat: {abs_file_path}")
+            self.coder.check_added_files()
+
+            return prompts.added_files.format(fnames=str(abs_file_path))
+
+        except Exception as e:
+            self.io.tool_error(f"Error adding clipboard image: {e}")
 
 
 def expand_subdir(file_path):

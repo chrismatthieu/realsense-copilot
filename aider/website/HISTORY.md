@@ -16,6 +16,42 @@ cog.out(text)
 
 # Release history
 
+### main branch
+
+- Added `--subtree-only` to limit aider to current directory subtree.
+  - Should help with large/mono repo performance.
+- New `/add-clipboard-image` to add images to the chat from your clipboard.
+- Support for Sonnet's 8k output window.
+  - [Aider already supported infinite output from Sonnet.](https://aider.chat/2024/07/01/sonnet-not-lazy.html)
+- Performance improvements for large repos.
+- Workaround litellm bug for retrying API server errors.
+- Upgraded dependencies, to pick up litellm bug fixes.
+
+### Aider v0.47.0
+
+- [Commit message](https://aider.chat/docs/git.html#commit-messages) improvements:
+  - Added Conventional Commits guidelines to commit message prompt.
+  - Added `--commit-prompt` to customize the commit message prompt.
+  - Added strong model as a fallback for commit messages (and chat summaries).
+- [Linting](https://aider.chat/docs/usage/lint-test.html) improvements:
+  - Ask before fixing lint errors.
+  - Improved performance of `--lint` on all dirty files in repo.
+  - Improved lint flow, now doing code edit auto-commit before linting.
+  - Bugfix to properly handle subprocess encodings (also for `/run`).
+- Improved [docker support](https://aider.chat/docs/install/docker.html):
+  - Resolved permission issues when using `docker run --user xxx`.
+  - New `paulgauthier/aider-full` docker image, which includes all extras.
+- Switching to code and ask mode no longer summarizes the chat history.
+- Added graph of aider's contribution to each release.
+- Generic auto-completions are provided for `/commands` without a completion override.
+- Fixed broken OCaml tags file.
+- Bugfix in `/run` add to chat approval logic.
+- Aider wrote 58% of the code in this release.
+
+### Aider v0.46.1
+
+- Downgraded stray numpy dependency back to 1.26.4.
+
 ### Aider v0.46.0
 
 - New `/ask <question>` command to ask about your code, without making any edits.

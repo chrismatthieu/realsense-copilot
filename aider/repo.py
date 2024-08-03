@@ -1,4 +1,5 @@
 import os
+import time
 from pathlib import Path, PurePosixPath
 
 import git
@@ -15,6 +16,9 @@ class GitRepo:
     aider_ignore_file = None
     aider_ignore_spec = None
     aider_ignore_ts = 0
+    aider_ignore_last_check = 0
+    subtree_only = False
+    ignore_file_cache = {}
 
     def __init__(
         self,
@@ -26,6 +30,8 @@ class GitRepo:
         attribute_author=True,
         attribute_committer=True,
         attribute_commit_message=False,
+        commit_prompt=None,
+        subtree_only=False,
     ):
         self.io = io
         self.models = models
@@ -33,6 +39,9 @@ class GitRepo:
         self.attribute_author = attribute_author
         self.attribute_committer = attribute_committer
         self.attribute_commit_message = attribute_commit_message
+        self.commit_prompt = commit_prompt
+        self.subtree_only = subtree_only
+        self.ignore_file_cache = {}
 
         if git_dname:
             check_fnames = [git_dname]
@@ -154,8 +163,9 @@ class GitRepo:
             content += context + "\n"
         content += diffs
 
+        system_content = self.commit_prompt or prompts.commit_system
         messages = [
-            dict(role="system", content=prompts.commit_system),
+            dict(role="system", content=system_content),
             dict(role="user", content=content),
         ]
 
@@ -250,23 +260,54 @@ class GitRepo:
     def normalize_path(self, path):
         return str(Path(PurePosixPath((Path(self.root) / path).relative_to(self.root))))
 
-    def ignored_file(self, fname):
-        if not self.aider_ignore_file or not self.aider_ignore_file.is_file():
+    def refresh_aider_ignore(self):
+        if not self.aider_ignore_file:
             return
 
-        try:
-            fname = self.normalize_path(fname)
-        except ValueError:
+        current_time = time.time()
+        if current_time - self.aider_ignore_last_check < 1:
+            return
+
+        self.aider_ignore_last_check = current_time
+
+        if not self.aider_ignore_file.is_file():
             return
 
         mtime = self.aider_ignore_file.stat().st_mtime
         if mtime != self.aider_ignore_ts:
             self.aider_ignore_ts = mtime
+            self.ignore_file_cache = {}
             lines = self.aider_ignore_file.read_text().splitlines()
             self.aider_ignore_spec = pathspec.PathSpec.from_lines(
                 pathspec.patterns.GitWildMatchPattern,
                 lines,
             )
+
+    def ignored_file(self, fname):
+        self.refresh_aider_ignore()
+
+        if fname in self.ignore_file_cache:
+            return self.ignore_file_cache[fname]
+
+        result = self.ignored_file_raw(fname)
+        self.ignore_file_cache[fname] = result
+        return result
+
+    def ignored_file_raw(self, fname):
+        if self.subtree_only:
+            fname_path = Path(self.normalize_path(fname))
+            cwd_path = Path(self.normalize_path(Path.cwd().relative_to(self.root)))
+
+            if cwd_path not in fname_path.parents:
+                return True
+
+        if not self.aider_ignore_file or not self.aider_ignore_file.is_file():
+            return False
+
+        try:
+            fname = self.normalize_path(fname)
+        except ValueError:
+            return True
 
         return self.aider_ignore_spec.match_file(fname)
 

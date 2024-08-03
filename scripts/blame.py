@@ -17,12 +17,15 @@ def blame(start_tag, end_tag=None):
 
     authors = get_commit_authors(commits)
 
-    py_files = run(["git", "ls-files", "*.py"]).strip().split("\n")
+    pats = "*.py *.scm *.sh **Dockerfile **Gemfile .github/workflows/*.yml".split()
+    files = []
+    for pat in pats:
+        files += run(["git", "ls-files", pat]).strip().split("\n")
 
     all_file_counts = {}
     grand_total = defaultdict(int)
     aider_total = 0
-    for file in py_files:
+    for file in files:
         file_counts = get_counts_for_file(start_tag, end_tag, authors, file)
         if file_counts:
             all_file_counts[file] = file_counts
@@ -133,7 +136,7 @@ def main():
 
     if args.all_since:
         results = process_all_tags_since(args.start_tag)
-        yaml_output = yaml.dump(results, sort_keys=False)
+        yaml_output = yaml.dump(results, sort_keys=True)
     else:
         all_file_counts, grand_total, total_lines, aider_total, aider_percentage, end_date = blame(
             args.start_tag, args.end_tag
@@ -153,13 +156,16 @@ def main():
             "aider_percentage": round(aider_percentage, 2),
         }
 
-        yaml_output = yaml.dump(result, sort_keys=False)
+        yaml_output = yaml.dump(result, sort_keys=True)
 
     if args.output:
         with open(args.output, "w") as f:
             f.write(yaml_output)
     else:
         print(yaml_output)
+
+    if not args.all_since:
+        print(f"- Aider wrote {round(aider_percentage)}% of the code in this release.")
 
 
 def get_counts_for_file(start_tag, end_tag, authors, fname):
