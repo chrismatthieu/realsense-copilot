@@ -57,6 +57,7 @@ setup(
     description="RobotChat is AI pair programming in your terminal",
     long_description=long_description,
     long_description_content_type="text/markdown",
+    author="Chris Matthieu",
     url="https://github.com/chrismatthieu/robotchat",
     classifiers=[
         "Development Status :: 4 - Beta",
