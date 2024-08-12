@@ -13,7 +13,7 @@ from PIL import Image
 
 from aider import urls
 from aider.dump import dump  # noqa: F401
-from aider.llm import litellm
+from aider.llm import AIDER_APP_NAME, AIDER_SITE_URL, litellm
 
 DEFAULT_MODEL_NAME = "gpt-4o"
 
@@ -143,6 +143,26 @@ MODEL_SETTINGS = [
         reminder_as_sys_msg=True,
     ),
     ModelSettings(
+        "openai/gpt-4o-2024-08-06",
+        "diff",
+        weak_model_name="gpt-4o-mini",
+        use_repo_map=True,
+        send_undo_reply=True,
+        accepts_images=True,
+        lazy=True,
+        reminder_as_sys_msg=True,
+    ),
+    ModelSettings(
+        "gpt-4o-2024-08-06",
+        "diff",
+        weak_model_name="gpt-4o-mini",
+        use_repo_map=True,
+        send_undo_reply=True,
+        accepts_images=True,
+        lazy=True,
+        reminder_as_sys_msg=True,
+    ),
+    ModelSettings(
         "gpt-4o",
         "diff",
         weak_model_name="gpt-4o-mini",
@@ -263,7 +283,11 @@ MODEL_SETTINGS = [
         examples_as_sys_msg=True,
         can_prefill=True,
         max_tokens=8192,
-        extra_headers={"anthropic-beta": "max-tokens-3-5-sonnet-2024-07-15"},
+        extra_headers={
+            "anthropic-beta": "max-tokens-3-5-sonnet-2024-07-15",
+            "HTTP-Referer": AIDER_SITE_URL,
+            "X-Title": AIDER_APP_NAME,
+        },
     ),
     ModelSettings(
         "openrouter/anthropic/claude-3.5-sonnet",
@@ -274,7 +298,11 @@ MODEL_SETTINGS = [
         can_prefill=True,
         accepts_images=True,
         max_tokens=8192,
-        extra_headers={"anthropic-beta": "max-tokens-3-5-sonnet-2024-07-15"},
+        extra_headers={
+            "anthropic-beta": "max-tokens-3-5-sonnet-2024-07-15",
+            "HTTP-Referer": "https://aider.chat",
+            "X-Title": "Aider",
+        },
     ),
     # Vertex AI Claude models
     # Does not yet support 8k token
@@ -395,9 +423,7 @@ class Model:
         self.missing_keys = res.get("missing_keys")
         self.keys_in_environment = res.get("keys_in_environment")
 
-        max_input_tokens = self.info.get("max_input_tokens")
-        if not max_input_tokens:
-            max_input_tokens = 0
+        max_input_tokens = self.info.get("max_input_tokens") or 0
         if max_input_tokens < 32 * 1024:
             self.max_chat_history_tokens = 1024
         else:
@@ -502,6 +528,9 @@ class Model:
         return litellm.encode(model=self.name, text=text)
 
     def token_count(self, messages):
+        if type(messages) is list:
+            return litellm.token_counter(model=self.name, messages=messages)
+
         if not self.tokenizer:
             return
 
@@ -556,9 +585,9 @@ class Model:
         """Fast path for common models. Avoids forcing litellm import."""
 
         model = self.name
-        if model in OPENAI_MODELS:
+        if model in OPENAI_MODELS or model.startswith("openai/"):
             var = "OPENAI_API_KEY"
-        elif model in ANTHROPIC_MODELS:
+        elif model in ANTHROPIC_MODELS or model.startswith("anthropic/"):
             var = "ANTHROPIC_API_KEY"
         else:
             return

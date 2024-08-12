@@ -26,7 +26,7 @@ cog.out(get_md_help())
 ]]]-->
 ```
 usage: aider [-h] [--openai-api-key] [--anthropic-api-key] [--model]
-             [--opus] [--sonnet] [--4] [--4o] [--4-turbo]
+             [--opus] [--sonnet] [--4] [--4o] [--mini] [--4-turbo]
              [--35turbo] [--models] [--openai-api-base]
              [--openai-api-type] [--openai-api-version]
              [--openai-api-deployment-id] [--openai-organization-id]
@@ -47,12 +47,13 @@ usage: aider [-h] [--openai-api-key] [--anthropic-api-key] [--model]
              [--dirty-commits | --no-dirty-commits]
              [--attribute-author | --no-attribute-author]
              [--attribute-committer | --no-attribute-committer]
-             [--attribute-commit-message | --no-attribute-commit-message]
+             [--attribute-commit-message-author | --no-attribute-commit-message-author]
+             [--attribute-commit-message-committer | --no-attribute-commit-message-committer]
              [--commit] [--commit-prompt] [--dry-run | --no-dry-run]
              [--lint] [--lint-cmd] [--auto-lint | --no-auto-lint]
              [--test-cmd] [--auto-test | --no-auto-test] [--test]
-             [--file] [--vim] [--voice-language] [--version]
-             [--just-check-update]
+             [--file] [--read] [--vim] [--voice-language]
+             [--version] [--just-check-update]
              [--check-update | --no-check-update] [--apply] [--yes]
              [-v] [--show-repo-map] [--show-prompts] [--exit]
              [--message] [--message-file] [--encoding] [-c] [--gui]
@@ -99,6 +100,10 @@ Aliases:
 ### `--4o`
 Use gpt-4o model for the main chat  
 Environment variable: `AIDER_4O`  
+
+### `--mini`
+Use gpt-4o-mini model for the main chat  
+Environment variable: `AIDER_MINI`  
 
 ### `--4-turbo`
 Use gpt-4-1106-preview model for the main chat  
@@ -160,6 +165,9 @@ Aliases:
 ### `--edit-format EDIT_FORMAT`
 Specify what edit format the LLM should use (default depends on model)  
 Environment variable: `AIDER_EDIT_FORMAT`  
+Aliases:
+  - `--edit-format EDIT_FORMAT`
+  - `--chat-mode EDIT_FORMAT`
 
 ### `--weak-model WEAK_MODEL`
 Specify the model to use for commit messages and chat history summarization (default depends on --model)  
@@ -175,7 +183,6 @@ Aliases:
 
 ### `--map-tokens VALUE`
 Max number of tokens to use for repo map, use 0 to disable (default: 1024)  
-Default: 1024  
 Environment variable: `AIDER_MAP_TOKENS`  
 
 ### `--max-chat-history-tokens VALUE`
@@ -328,13 +335,21 @@ Aliases:
   - `--attribute-committer`
   - `--no-attribute-committer`
 
-### `--attribute-commit-message`
-Prefix commit messages with 'aider: ' (default: False)  
+### `--attribute-commit-message-author`
+Prefix commit messages with 'aider: ' if aider authored the changes (default: False)  
 Default: False  
-Environment variable: `AIDER_ATTRIBUTE_COMMIT_MESSAGE`  
+Environment variable: `AIDER_ATTRIBUTE_COMMIT_MESSAGE_AUTHOR`  
 Aliases:
-  - `--attribute-commit-message`
-  - `--no-attribute-commit-message`
+  - `--attribute-commit-message-author`
+  - `--no-attribute-commit-message-author`
+
+### `--attribute-commit-message-committer`
+Prefix all commit messages with 'aider: ' (default: False)  
+Default: False  
+Environment variable: `AIDER_ATTRIBUTE_COMMIT_MESSAGE_COMMITTER`  
+Aliases:
+  - `--attribute-commit-message-committer`
+  - `--no-attribute-commit-message-committer`
 
 ### `--commit`
 Commit all pending changes with a suitable commit message, then exit  
@@ -396,6 +411,10 @@ Environment variable: `AIDER_TEST`
 ### `--file FILE`
 specify a file to edit (can be used multiple times)  
 Environment variable: `AIDER_FILE`  
+
+### `--read FILE`
+specify a read-only file (can be used multiple times)  
+Environment variable: `AIDER_READ`  
 
 ### `--vim`
 Use VI editing mode in the terminal (default: False)  

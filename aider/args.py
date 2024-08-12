@@ -82,6 +82,14 @@ def get_parser(default_config_files, git_root):
         const=gpt_4o_model,
         help=f"Use {gpt_4o_model} model for the main chat",
     )
+    gpt_4o_mini_model = "gpt-4o-mini"
+    group.add_argument(
+        "--mini",
+        action="store_const",
+        dest="model",
+        const=gpt_4o_mini_model,
+        help=f"Use {gpt_4o_mini_model} model for the main chat",
+    )
     gpt_4_turbo_model = "gpt-4-1106-preview"
     group.add_argument(
         "--4-turbo",
@@ -159,6 +167,7 @@ def get_parser(default_config_files, git_root):
     )
     group.add_argument(
         "--edit-format",
+        "--chat-mode",
         metavar="EDIT_FORMAT",
         default=None,
         help="Specify what edit format the LLM should use (default depends on model)",
@@ -181,7 +190,7 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--map-tokens",
         type=int,
-        default=1024,
+        default=None,
         help="Max number of tokens to use for repo map, use 0 to disable (default: 1024)",
     )
     group.add_argument(
@@ -350,10 +359,16 @@ def get_parser(default_config_files, git_root):
         help="Attribute aider commits in the git committer name (default: True)",
     )
     group.add_argument(
-        "--attribute-commit-message",
+        "--attribute-commit-message-author",
         action=argparse.BooleanOptionalAction,
         default=False,
-        help="Prefix commit messages with 'aider: ' (default: False)",
+        help="Prefix commit messages with 'aider: ' if aider authored the changes (default: False)",
+    )
+    group.add_argument(
+        "--attribute-commit-message-committer",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Prefix all commit messages with 'aider: ' (default: False)",
     )
     group.add_argument(
         "--commit",
@@ -419,6 +434,12 @@ def get_parser(default_config_files, git_root):
         action="append",
         metavar="FILE",
         help="specify a file to edit (can be used multiple times)",
+    )
+    group.add_argument(
+        "--read",
+        action="append",
+        metavar="FILE",
+        help="specify a read-only file (can be used multiple times)",
     )
     group.add_argument(
         "--vim",

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import locale
 import math
 import mimetypes
 import os
@@ -29,7 +30,7 @@ from aider.llm import litellm
 from aider.mdstream import MarkdownStream
 from aider.repo import GitRepo
 from aider.repomap import RepoMap
-from aider.sendchat import send_with_retries
+from aider.sendchat import retry_exceptions, send_completion
 from aider.utils import format_content, format_messages, is_image_file
 
 from ..dump import dump  # noqa: F401
@@ -49,9 +50,9 @@ def wrap_fence(name):
 
 class Coder:
     abs_fnames = None
+    abs_read_only_fnames = None
     repo = None
     last_aider_commit_hash = None
-    aider_commit_hashes = set()
     aider_edited_files = None
     last_asked_for_commit_time = 0
     repo_map = None
@@ -70,7 +71,8 @@ class Coder:
     lint_outcome = None
     test_outcome = None
     multi_response_content = ""
-    rejected_urls = set()
+    partial_response_content = ""
+    commit_before_message = []
 
     @classmethod
     def create(
@@ -90,6 +92,8 @@ class Coder:
             else:
                 main_model = models.Model(models.DEFAULT_MODEL_NAME)
 
+        if edit_format == "code":
+            edit_format = None
         if edit_format is None:
             if from_coder:
                 edit_format = from_coder.edit_format
@@ -113,6 +117,7 @@ class Coder:
             # Bring along context from the old Coder
             update = dict(
                 fnames=list(from_coder.abs_fnames),
+                read_only_fnames=list(from_coder.abs_read_only_fnames),  # Copy read-only files
                 done_messages=done_messages,
                 cur_messages=from_coder.cur_messages,
                 aider_commit_hashes=from_coder.aider_commit_hashes,
@@ -157,9 +162,9 @@ class Coder:
             lines.append(f"Git repo: {rel_repo_dir} with {num_files:,} files")
             if num_files > 1000:
                 lines.append(
-                    "Warning: For large repos, consider using an .aiderignore file to ignore"
-                    " irrelevant files/dirs."
+                    "Warning: For large repos, consider using --subtree-only and .aiderignore"
                 )
+                lines.append(f"See: {urls.large_repos}")
         else:
             lines.append("Git repo: none")
 
@@ -194,7 +199,7 @@ class Coder:
         io,
         repo=None,
         fnames=None,
-        pretty=True,
+        read_only_fnames=None,
         show_diffs=False,
         auto_commits=True,
         dirty_commits=True,
@@ -218,6 +223,11 @@ class Coder:
         summarizer=None,
         total_cost=0.0,
     ):
+        self.commit_before_message = []
+        self.aider_commit_hashes = set()
+        self.rejected_urls = set()
+        self.abs_root_path_cache = {}
+
         if not fnames:
             fnames = []
 
@@ -237,6 +247,7 @@ class Coder:
 
         self.verbose = verbose
         self.abs_fnames = set()
+        self.abs_read_only_fnames = set()
 
         if cur_messages:
             self.cur_messages = cur_messages
@@ -260,9 +271,9 @@ class Coder:
         self.code_theme = code_theme
 
         self.dry_run = dry_run
-        self.pretty = pretty
+        self.pretty = self.io.pretty
 
-        if pretty:
+        if self.pretty:
             self.console = Console()
         else:
             self.console = Console(force_terminal=False, no_color=True)
@@ -311,8 +322,26 @@ class Coder:
         if not self.repo:
             self.find_common_root()
 
+        if read_only_fnames:
+            self.abs_read_only_fnames = set()
+            for fname in read_only_fnames:
+                abs_fname = self.abs_root_path(fname)
+                if os.path.exists(abs_fname):
+                    self.abs_read_only_fnames.add(abs_fname)
+                else:
+                    self.io.tool_error(f"Error: Read-only file {fname} does not exist. Skipping.")
+
+        if map_tokens is None:
+            use_repo_map = main_model.use_repo_map
+            map_tokens = 1024
+        else:
+            use_repo_map = map_tokens > 0
+
         max_inp_tokens = self.main_model.info.get("max_input_tokens") or 0
-        if main_model.use_repo_map and self.repo and self.gpt_prompts.repo_content_prefix:
+
+        has_map_prompt = hasattr(self, "gpt_prompts") and self.gpt_prompts.repo_content_prefix
+
+        if use_repo_map and self.repo and has_map_prompt:
             self.repo_map = RepoMap(
                 map_tokens,
                 self.root,
@@ -364,8 +393,10 @@ class Coder:
             self.linter.set_linter(lang, cmd)
 
     def show_announcements(self):
+        bold = True
         for line in self.get_announcements():
-            self.io.tool_output(line)
+            self.io.tool_output(line, bold=bold)
+            bold = False
 
     def find_common_root(self):
         if len(self.abs_fnames) == 1:
@@ -388,8 +419,14 @@ class Coder:
             return True
 
     def abs_root_path(self, path):
+        key = path
+        if key in self.abs_root_path_cache:
+            return self.abs_root_path_cache[key]
+
         res = Path(self.root) / path
-        return utils.safe_abs_path(res)
+        res = utils.safe_abs_path(res)
+        self.abs_root_path_cache[key] = res
+        return res
 
     fences = [
         ("``" + "`", "``" + "`"),
@@ -426,6 +463,10 @@ class Coder:
         all_content = ""
         for _fname, content in self.get_abs_fnames_content():
             all_content += content + "\n"
+        for _fname in self.abs_read_only_fnames:
+            content = self.io.read_text(_fname)
+            if content is not None:
+                all_content += content + "\n"
 
         good = False
         for fence_open, fence_close in self.fences:
@@ -467,6 +508,19 @@ class Coder:
 
         return prompt
 
+    def get_read_only_files_content(self):
+        prompt = ""
+        for fname in self.abs_read_only_fnames:
+            content = self.io.read_text(fname)
+            if content is not None and not is_image_file(fname):
+                relative_fname = self.get_rel_fname(fname)
+                prompt += "\n"
+                prompt += relative_fname
+                prompt += f"\n{self.fence[0]}\n"
+                prompt += content
+                prompt += f"{self.fence[1]}\n"
+        return prompt
+
     def get_cur_message_text(self):
         text = ""
         for msg in self.cur_messages:
@@ -504,9 +558,13 @@ class Coder:
 
         mentioned_fnames.update(self.get_ident_filename_matches(mentioned_idents))
 
-        other_files = set(self.get_all_abs_files()) - set(self.abs_fnames)
+        all_abs_files = set(self.get_all_abs_files())
+        repo_abs_read_only_fnames = set(self.abs_read_only_fnames) & all_abs_files
+        chat_files = set(self.abs_fnames) | repo_abs_read_only_fnames
+        other_files = all_abs_files - chat_files
+
         repo_content = self.repo_map.get_repo_map(
-            self.abs_fnames,
+            chat_files,
             other_files,
             mentioned_fnames=mentioned_fnames,
             mentioned_idents=mentioned_idents,
@@ -516,7 +574,7 @@ class Coder:
         if not repo_content:
             repo_content = self.repo_map.get_repo_map(
                 set(),
-                set(self.get_all_abs_files()),
+                all_abs_files,
                 mentioned_fnames=mentioned_fnames,
                 mentioned_idents=mentioned_idents,
             )
@@ -525,7 +583,7 @@ class Coder:
         if not repo_content:
             repo_content = self.repo_map.get_repo_map(
                 set(),
-                set(self.get_all_abs_files()),
+                all_abs_files,
             )
 
         return repo_content
@@ -554,17 +612,29 @@ class Coder:
             files_content = self.gpt_prompts.files_no_full_files
             files_reply = "Ok."
 
-        if files_content:
-            files_messages += [
-                dict(role="user", content=files_content),
-                dict(role="assistant", content=files_reply),
-            ]
-
         images_message = self.get_images_message()
         if images_message is not None:
             files_messages += [
                 images_message,
                 dict(role="assistant", content="Ok."),
+            ]
+
+        read_only_content = self.get_read_only_files_content()
+        if read_only_content:
+            files_messages += [
+                dict(
+                    role="user", content=self.gpt_prompts.read_only_files_prefix + read_only_content
+                ),
+                dict(
+                    role="assistant",
+                    content="Ok, I will use these files as references.",
+                ),
+            ]
+
+        if files_content:
+            files_messages += [
+                dict(role="user", content=files_content),
+                dict(role="assistant", content=files_reply),
             ]
 
         return files_messages
@@ -579,9 +649,11 @@ class Coder:
                 mime_type, _ = mimetypes.guess_type(fname)
                 if mime_type and mime_type.startswith("image/"):
                     image_url = f"data:{mime_type};base64,{content}"
-                    image_messages.append(
-                        {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}}
-                    )
+                    rel_fname = self.get_rel_fname(fname)
+                    image_messages += [
+                        {"type": "text", "text": f"Image file: {rel_fname}"},
+                        {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}},
+                    ]
 
         if not image_messages:
             return None
@@ -591,7 +663,7 @@ class Coder:
     def run_stream(self, user_message):
         self.io.user_input(user_message)
         self.init_before_message()
-        yield from self.send_new_user_message(user_message)
+        yield from self.send_message(user_message)
 
     def init_before_message(self):
         self.reflected_message = None
@@ -599,48 +671,39 @@ class Coder:
         self.lint_outcome = None
         self.test_outcome = None
         self.edit_outcome = None
+        if self.repo:
+            self.commit_before_message.append(self.repo.get_head())
 
-    def run(self, with_message=None):
-        while True:
-            self.init_before_message()
+    def run(self, with_message=None, preproc=True):
+        try:
+            if with_message:
+                self.io.user_input(with_message)
+                self.run_one(with_message, preproc)
+                return self.partial_response_content
 
-            try:
-                if with_message:
-                    new_user_message = with_message
-                    self.io.user_input(with_message)
-                else:
-                    new_user_message = self.run_loop()
+            while True:
+                try:
+                    user_message = self.get_input()
+                    self.run_one(user_message, preproc)
+                    self.show_undo_hint()
+                except KeyboardInterrupt:
+                    self.keyboard_interrupt()
+        except EOFError:
+            return
 
-                while new_user_message:
-                    self.reflected_message = None
-                    list(self.send_new_user_message(new_user_message))
-
-                    new_user_message = None
-                    if self.reflected_message:
-                        if self.num_reflections < self.max_reflections:
-                            self.num_reflections += 1
-                            new_user_message = self.reflected_message
-                        else:
-                            self.io.tool_error(
-                                f"Only {self.max_reflections} reflections allowed, stopping."
-                            )
-
-                if with_message:
-                    return self.partial_response_content
-
-            except KeyboardInterrupt:
-                self.keyboard_interrupt()
-            except EOFError:
-                return
-
-    def run_loop(self):
-        inp = self.io.get_input(
+    def get_input(self):
+        inchat_files = self.get_inchat_relative_files()
+        read_only_files = [self.get_rel_fname(fname) for fname in self.abs_read_only_fnames]
+        all_files = sorted(set(inchat_files + read_only_files))
+        return self.io.get_input(
             self.root,
-            self.get_inchat_relative_files(),
+            all_files,
             self.get_addable_relative_files(),
             self.commands,
+            self.abs_read_only_fnames,
         )
 
+    def preproc_user_input(self, inp):
         if not inp:
             return
 
@@ -652,6 +715,28 @@ class Coder:
 
         return inp
 
+    def run_one(self, user_message, preproc):
+        self.init_before_message()
+
+        if preproc:
+            message = self.preproc_user_input(user_message)
+        else:
+            message = user_message
+
+        while message:
+            self.reflected_message = None
+            list(self.send_message(message))
+
+            if not self.reflected_message:
+                break
+
+            if self.num_reflections >= self.max_reflections:
+                self.io.tool_error(f"Only {self.max_reflections} reflections allowed, stopping.")
+                return
+
+            self.num_reflections += 1
+            message = self.reflected_message
+
     def check_for_urls(self, inp):
         url_pattern = re.compile(r"(https?://[^\s/$.?#].[^\s]*[^\s,.])")
         urls = list(set(url_pattern.findall(inp)))  # Use set to remove duplicates
@@ -660,7 +745,7 @@ class Coder:
             if url not in self.rejected_urls:
                 if self.io.confirm_ask(f"Add {url} to the chat?"):
                     inp += "\n\n"
-                    inp += self.commands.cmd_web(url)
+                    inp += self.commands.cmd_web(url, paginate=False)
                     added_urls.append(url)
                 else:
                     self.rejected_urls.add(url)
@@ -722,19 +807,41 @@ class Coder:
             ]
         self.cur_messages = []
 
+    def get_user_language(self):
+        try:
+            lang = locale.getlocale()[0]
+            if lang:
+                return lang  # Return the full language code, including country
+        except Exception:
+            pass
+
+        for env_var in ["LANG", "LANGUAGE", "LC_ALL", "LC_MESSAGES"]:
+            lang = os.environ.get(env_var)
+            if lang:
+                return lang.split(".")[
+                    0
+                ]  # Return language and country, but remove encoding if present
+
+        return None
+
     def fmt_system_prompt(self, prompt):
         lazy_prompt = self.gpt_prompts.lazy_prompt if self.main_model.lazy else ""
 
-        platform_text = f"- The user's system: {platform.platform()}\n"
+        platform_text = f"- Platform: {platform.platform()}\n"
         if os.name == "nt":
             var = "COMSPEC"
         else:
             var = "SHELL"
 
         val = os.getenv(var)
-        platform_text += f"- The user's shell: {var}={val}\n"
-        dt = datetime.now().isoformat()
-        platform_text += f"- The current date/time: {dt}"
+        platform_text += f"- Shell: {var}={val}\n"
+
+        user_lang = self.get_user_language()
+        if user_lang:
+            platform_text += f"- Language: {user_lang}\n"
+
+        dt = datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M:%S%z")
+        platform_text += f"- Current date/time: {dt}"
 
         prompt = prompt.format(
             fence=self.fence,
@@ -786,6 +893,7 @@ class Coder:
 
         self.summarize_end()
         messages += self.done_messages
+
         messages += self.get_files_messages()
 
         if self.gpt_prompts.system_reminder:
@@ -812,7 +920,7 @@ class Coder:
 
         final = messages[-1]
 
-        max_input_tokens = self.main_model.info.get("max_input_tokens")
+        max_input_tokens = self.main_model.info.get("max_input_tokens") or 0
         # Add the reminder prompt if we still have room to include it.
         if (
             max_input_tokens is None
@@ -832,7 +940,7 @@ class Coder:
 
         return messages
 
-    def send_new_user_message(self, inp):
+    def send_message(self, inp):
         self.aider_edited_files = None
 
         self.cur_messages += [
@@ -851,6 +959,8 @@ class Coder:
         else:
             self.mdstream = None
 
+        retry_delay = 0.125
+
         self.usage_report = None
         exhausted = False
         interrupted = False
@@ -859,6 +969,14 @@ class Coder:
                 try:
                     yield from self.send(messages, functions=self.functions)
                     break
+                except retry_exceptions() as err:
+                    self.io.tool_error(str(err))
+                    retry_delay *= 2
+                    if retry_delay > 60:
+                        break
+                    self.io.tool_output(f"Retrying in {retry_delay:.1f} seconds...")
+                    time.sleep(retry_delay)
+                    continue
                 except KeyboardInterrupt:
                     interrupted = True
                     break
@@ -971,10 +1089,10 @@ class Coder:
         output_tokens = 0
         if self.partial_response_content:
             output_tokens = self.main_model.token_count(self.partial_response_content)
-        max_output_tokens = self.main_model.info.get("max_output_tokens", 0)
+        max_output_tokens = self.main_model.info.get("max_output_tokens") or 0
 
         input_tokens = self.main_model.token_count(self.format_messages())
-        max_input_tokens = self.main_model.info.get("max_input_tokens", 0)
+        max_input_tokens = self.main_model.info.get("max_input_tokens") or 0
 
         total_tokens = input_tokens + output_tokens
 
@@ -1121,7 +1239,7 @@ class Coder:
 
         interrupted = False
         try:
-            hash_object, completion = send_with_retries(
+            hash_object, completion = send_completion(
                 model.name,
                 messages,
                 functions,
@@ -1316,7 +1434,9 @@ class Coder:
         else:
             files = self.get_inchat_relative_files()
 
-        files = [fname for fname in files if self.is_file_safe(fname)]
+        # This is quite slow in large repos
+        # files = [fname for fname in files if self.is_file_safe(fname)]
+
         return sorted(set(files))
 
     def get_all_abs_files(self):
@@ -1544,7 +1664,11 @@ class Coder:
         if self.show_diffs:
             self.commands.cmd_diff()
 
-        self.io.tool_output(f"You can use /undo to revert and discard commit {commit_hash}.")
+    def show_undo_hint(self):
+        if not self.commit_before_message:
+            return
+        if self.commit_before_message[-1] != self.repo.get_head():
+            self.io.tool_output("You can use /undo to undo and discard each aider commit.")
 
     def dirty_commit(self):
         if not self.need_commit_before_edits:

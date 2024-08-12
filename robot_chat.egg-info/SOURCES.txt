@@ -75,7 +75,9 @@ aider/website/_includes/help-tip.md
 aider/website/_includes/help.md
 aider/website/_includes/model-warnings.md
 aider/website/_includes/multi-line.md
+aider/website/_includes/python-m-aider.md
 aider/website/_includes/special-keys.md
+aider/website/_includes/venv-pipx.md
 aider/website/_includes/works-best.md
 aider/website/docs/config.md
 aider/website/docs/faq.md
@@ -109,7 +111,9 @@ aider/website/docs/llms/openai-compat.md
 aider/website/docs/llms/openai.md
 aider/website/docs/llms/openrouter.md
 aider/website/docs/llms/other.md
+aider/website/docs/llms/vertex.md
 aider/website/docs/llms/warnings.md
+aider/website/docs/troubleshooting/aider-not-found.md
 aider/website/docs/troubleshooting/edit-errors.md
 aider/website/docs/troubleshooting/support.md
 aider/website/docs/troubleshooting/token-limits.md
@@ -119,6 +123,7 @@ aider/website/docs/usage/commands.md
 aider/website/docs/usage/conventions.md
 aider/website/docs/usage/images-urls.md
 aider/website/docs/usage/lint-test.md
+aider/website/docs/usage/modes.md
 aider/website/docs/usage/tips.md
 aider/website/docs/usage/tutorials.md
 aider/website/docs/usage/voice.md

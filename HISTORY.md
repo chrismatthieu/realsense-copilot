@@ -1,16 +1,52 @@
 
 # Release history
 
-### main branch
+### Aider v0.49.1
 
+- Bugfix to `/help`.
+
+### Aider v0.49.0
+
+- Add read-only files to the chat context with `/read` and `--read`,  including from outside the git repo.
+- `/diff` now shows diffs of all changes resulting from your request, including lint and test fixes.
+- New `/clipboard` command to paste images or text from the clipboard, replaces `/add-clipboard-image`.
+- Now shows the markdown scraped when you add a url with `/web`.
+- When [scripting aider](https://aider.chat/docs/scripting.html) messages can now contain in-chat `/` commands.
+- Aider in docker image now suggests the correct command to update to latest version.
+- Improved retries on API errors (was easy to test during Sonnet outage).
+- Added `--mini` for `gpt-4o-mini`.
+- Bugfix to keep session cost accurate when using `/ask` and `/help`.
+- Performance improvements for repo map calculation.
+- `/tokens` now shows the active model.
+- Enhanced commit message attribution options:
+  - New `--attribute-commit-message-author` to prefix commit messages with 'aider: ' if aider authored the changes, replaces `--attribute-commit-message`.
+  - New `--attribute-commit-message-committer` to prefix all commit messages with 'aider: '.
+- Aider wrote 61% of the code in this release.
+
+### Aider v0.48.1
+
+- Added `openai/gpt-4o-2024-08-06`.
+- Worked around litellm bug that removes OpenRouter app headers when using `extra_headers`.
+- Improved progress indication during repo map processing.
+- Corrected instructions for upgrading the docker container to latest aider version.
+- Removed obsolete 16k token limit on commit diffs, use per-model limits.
+
+### Aider v0.48.0
+
+- Performance improvements for large/mono repos.
 - Added `--subtree-only` to limit aider to current directory subtree.
   - Should help with large/mono repo performance.
 - New `/add-clipboard-image` to add images to the chat from your clipboard.
+- Use `--map-tokens 1024` to use repo map with any model.
 - Support for Sonnet's 8k output window.
   - [Aider already supported infinite output from Sonnet.](https://aider.chat/2024/07/01/sonnet-not-lazy.html)
-- Performance improvements for large repos.
 - Workaround litellm bug for retrying API server errors.
 - Upgraded dependencies, to pick up litellm bug fixes.
+- Aider wrote 44% of the code in this release.
+
+### Aider v0.47.1
+
+- Improvements to conventional commits prompting.
 
 ### Aider v0.47.0
 

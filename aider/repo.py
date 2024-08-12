@@ -29,16 +29,21 @@ class GitRepo:
         models=None,
         attribute_author=True,
         attribute_committer=True,
-        attribute_commit_message=False,
+        attribute_commit_message_author=False,
+        attribute_commit_message_committer=False,
         commit_prompt=None,
         subtree_only=False,
     ):
         self.io = io
         self.models = models
 
+        self.normalized_path = {}
+        self.tree_files = {}
+
         self.attribute_author = attribute_author
         self.attribute_committer = attribute_committer
-        self.attribute_commit_message = attribute_commit_message
+        self.attribute_commit_message_author = attribute_commit_message_author
+        self.attribute_commit_message_committer = attribute_commit_message_committer
         self.commit_prompt = commit_prompt
         self.subtree_only = subtree_only
         self.ignore_file_cache = {}
@@ -95,7 +100,9 @@ class GitRepo:
         else:
             commit_message = self.get_commit_message(diffs, context)
 
-        if aider_edits and self.attribute_commit_message:
+        if aider_edits and self.attribute_commit_message_author:
+            commit_message = "robotchat: " + commit_message
+        elif self.attribute_commit_message_committer:
             commit_message = "robotchat: " + commit_message
 
         if not commit_message:
@@ -127,7 +134,7 @@ class GitRepo:
 
         self.repo.git.commit(cmd)
         commit_hash = self.repo.head.commit.hexsha[:7]
-        self.io.tool_output(f"Commit {commit_hash} {commit_message}")
+        self.io.tool_output(f"Commit {commit_hash} {commit_message}", bold=True)
 
         # Restore the env
 
@@ -152,10 +159,6 @@ class GitRepo:
             return self.repo.git_dir
 
     def get_commit_message(self, diffs, context):
-        if len(diffs) >= 4 * 1024 * 4:
-            self.io.tool_error("Diff is too large to generate a commit message.")
-            return
-
         diffs = "# Diffs:\n" + diffs
 
         content = ""
@@ -169,7 +172,12 @@ class GitRepo:
             dict(role="user", content=content),
         ]
 
+        commit_message = None
         for model in self.models:
+            num_tokens = model.token_count(messages)
+            max_tokens = model.info.get("max_input_tokens") or 0
+            if max_tokens and num_tokens > max_tokens:
+                continue
             commit_message = simple_send_with_retries(model.name, messages)
             if commit_message:
                 break
@@ -223,6 +231,8 @@ class GitRepo:
         args = []
         if pretty:
             args += ["--color"]
+        else:
+            args += ["--color=never"]
 
         args += [from_commit, to_commit]
         diffs = self.repo.git.diff(*args)
@@ -238,27 +248,35 @@ class GitRepo:
         except ValueError:
             commit = None
 
-        files = []
+        files = set()
         if commit:
-            for blob in commit.tree.traverse():
-                if blob.type == "blob":  # blob is a file
-                    files.append(blob.path)
+            if commit in self.tree_files:
+                files = self.tree_files[commit]
+            else:
+                for blob in commit.tree.traverse():
+                    if blob.type == "blob":  # blob is a file
+                        files.add(blob.path)
+                files = set(self.normalize_path(path) for path in files)
+                self.tree_files[commit] = set(files)
 
         # Add staged files
         index = self.repo.index
         staged_files = [path for path, _ in index.entries.keys()]
+        files.update(self.normalize_path(path) for path in staged_files)
 
-        files.extend(staged_files)
-
-        # convert to appropriate os.sep, since git always normalizes to /
-        res = set(self.normalize_path(path) for path in files)
-
-        res = [fname for fname in res if not self.ignored_file(fname)]
+        res = [fname for fname in files if not self.ignored_file(fname)]
 
         return res
 
     def normalize_path(self, path):
-        return str(Path(PurePosixPath((Path(self.root) / path).relative_to(self.root))))
+        orig_path = path
+        res = self.normalized_path.get(orig_path)
+        if res:
+            return res
+
+        path = str(Path(PurePosixPath((Path(self.root) / path).relative_to(self.root))))
+        self.normalized_path[orig_path] = path
+        return path
 
     def refresh_aider_ignore(self):
         if not self.aider_ignore_file:
@@ -296,9 +314,9 @@ class GitRepo:
     def ignored_file_raw(self, fname):
         if self.subtree_only:
             fname_path = Path(self.normalize_path(fname))
-            cwd_path = Path(self.normalize_path(Path.cwd().relative_to(self.root)))
+            cwd_path = Path.cwd().resolve().relative_to(Path(self.root).resolve())
 
-            if cwd_path not in fname_path.parents:
+            if cwd_path not in fname_path.parents and fname_path != cwd_path:
                 return True
 
         if not self.aider_ignore_file or not self.aider_ignore_file.is_file():
@@ -344,3 +362,9 @@ class GitRepo:
             return True
 
         return self.repo.is_dirty(path=path)
+
+    def get_head(self):
+        try:
+            return self.repo.head.commit.hexsha
+        except ValueError:
+            return None
