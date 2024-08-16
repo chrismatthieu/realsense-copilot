@@ -1,8 +1,7 @@
 LICENSE.txt
-MANIFEST.in
 README.md
+pyproject.toml
 requirements.txt
-setup.py
 aider/__init__.py
 aider/__main__.py
 aider/args.py
@@ -51,6 +50,7 @@ aider/coders/wholefile_coder.py
 aider/coders/wholefile_func_coder.py
 aider/coders/wholefile_func_prompts.py
 aider/coders/wholefile_prompts.py
+aider/coders/aider/commands.py
 aider/queries/tree-sitter-c-tags.scm
 aider/queries/tree-sitter-c_sharp-tags.scm
 aider/queries/tree-sitter-cpp-tags.scm
@@ -128,6 +128,10 @@ aider/website/docs/usage/tips.md
 aider/website/docs/usage/tutorials.md
 aider/website/docs/usage/voice.md
 aider/website/share/index.md
+requirements/requirements-browser.txt
+requirements/requirements-dev.txt
+requirements/requirements-help.txt
+requirements/requirements-playwright.txt
 robot_chat.egg-info/PKG-INFO
 robot_chat.egg-info/SOURCES.txt
 robot_chat.egg-info/dependency_links.txt
