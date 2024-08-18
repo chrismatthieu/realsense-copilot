@@ -17,6 +17,7 @@ from aider.dump import dump  # noqa: F401
 from aider.llm import AIDER_APP_NAME, AIDER_SITE_URL, litellm
 
 DEFAULT_MODEL_NAME = "gpt-4o"
+ANTHROPIC_BETA_HEADER = "max-tokens-3-5-sonnet-2024-07-15,prompt-caching-2024-07-31"
 
 OPENAI_MODELS = """
 gpt-4
@@ -73,6 +74,7 @@ class ModelSettings:
     examples_as_sys_msg: bool = False
     extra_headers: Optional[dict] = None
     max_tokens: Optional[int] = None
+    cache_control: bool = False
 
 
 # https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
@@ -269,7 +271,10 @@ MODEL_SETTINGS = [
         examples_as_sys_msg=True,
         accepts_images=True,
         max_tokens=8192,
-        extra_headers={"anthropic-beta": "max-tokens-3-5-sonnet-2024-07-15"},
+        extra_headers={
+            "anthropic-beta": ANTHROPIC_BETA_HEADER,
+        },
+        cache_control=True,
     ),
     ModelSettings(
         "anthropic/claude-3-5-sonnet-20240620",
@@ -279,10 +284,9 @@ MODEL_SETTINGS = [
         examples_as_sys_msg=True,
         max_tokens=8192,
         extra_headers={
-            "anthropic-beta": "max-tokens-3-5-sonnet-2024-07-15",
-            "HTTP-Referer": AIDER_SITE_URL,
-            "X-Title": AIDER_APP_NAME,
+            "anthropic-beta": ANTHROPIC_BETA_HEADER,
         },
+        cache_control=True,
     ),
     ModelSettings(
         "openrouter/anthropic/claude-3.5-sonnet",
@@ -294,8 +298,8 @@ MODEL_SETTINGS = [
         max_tokens=8192,
         extra_headers={
             "anthropic-beta": "max-tokens-3-5-sonnet-2024-07-15",
-            "HTTP-Referer": "https://aider.chat",
-            "X-Title": "Aider",
+            "HTTP-Referer": AIDER_SITE_URL,
+            "X-Title": AIDER_APP_NAME,
         },
     ),
     # Vertex AI Claude models

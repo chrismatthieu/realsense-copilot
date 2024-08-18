@@ -507,6 +507,9 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         args.max_chat_history_tokens or main_model.max_chat_history_tokens,
     )
 
+    if args.cache_prompts:
+        args.map_refresh = "files"
+
     try:
         coder = Coder.create(
             main_model=main_model,
@@ -532,8 +535,9 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             test_cmd=args.test_cmd,
             commands=commands,
             summarizer=summarizer,
+            map_refresh=args.map_refresh,
+            cache_prompts=args.cache_prompts,
         )
-
     except ValueError as err:
         io.tool_error(str(err))
         return 1
@@ -541,6 +545,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if return_coder:
         return coder
 
+    io.tool_output()
     coder.show_announcements()
 
     if args.show_prompts:
