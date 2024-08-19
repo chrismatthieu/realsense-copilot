@@ -27,7 +27,7 @@ dynamic = ["dependencies", "optional-dependencies", "version"]
 Homepage = "https://github.com/paul-gauthier/aider"
 
 [project.scripts]
-robotchat = "robotchat.main:main"
+robotchat = "aider.main:main"
 
 [tool.setuptools.dynamic]
 version = { attr = "aider.__init__.__version__" }
