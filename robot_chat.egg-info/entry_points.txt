@@ -1,2 +1,2 @@
 [console_scripts]
-robotchat = robotchat.main:main
+robotchat = aider.main:main

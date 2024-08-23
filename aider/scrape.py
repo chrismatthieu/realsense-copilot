@@ -8,7 +8,7 @@ import pypandoc
 from aider import __version__, urls, utils
 from aider.dump import dump  # noqa: F401
 
-aider_user_agent = f"RobotChat/{__version__} +{urls.website}"
+robotchat_user_agent = f"RobotChat/{__version__} +{urls.website}"
 
 # Playwright is nice because it has a simple way to install dependencies on most
 # platforms.

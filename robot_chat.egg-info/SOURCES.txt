@@ -33,6 +33,7 @@ aider/coders/ask_coder.py
 aider/coders/ask_prompts.py
 aider/coders/base_coder.py
 aider/coders/base_prompts.py
+aider/coders/chat_chunks.py
 aider/coders/editblock_coder.py
 aider/coders/editblock_fenced_coder.py
 aider/coders/editblock_fenced_prompts.py
@@ -50,7 +51,6 @@ aider/coders/wholefile_coder.py
 aider/coders/wholefile_func_coder.py
 aider/coders/wholefile_func_prompts.py
 aider/coders/wholefile_prompts.py
-aider/coders/aider/commands.py
 aider/queries/tree-sitter-c-tags.scm
 aider/queries/tree-sitter-c_sharp-tags.scm
 aider/queries/tree-sitter-cpp-tags.scm
