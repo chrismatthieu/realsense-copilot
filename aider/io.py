@@ -4,13 +4,15 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
+from prompt_toolkit import prompt
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.lexers import PygmentsLexer
-from prompt_toolkit.shortcuts import CompleteStyle, PromptSession, prompt
+from prompt_toolkit.shortcuts import CompleteStyle, PromptSession
 from prompt_toolkit.styles import Style
+from prompt_toolkit.validation import Validator
 from pygments.lexers import MarkdownLexer, guess_lexer_for_filename
 from pygments.token import Token
 from pygments.util import ClassNotFound
@@ -113,7 +115,10 @@ class AutoCompleter(Completer):
 
         candidates = self.words
         candidates.update(set(self.fname_to_rel_fnames))
-        candidates = [(word, f"`{word}`") for word in candidates]
+        candidates = [
+            (word, f"`{word}`" if word not in self.fname_to_rel_fnames else word)
+            for word in candidates
+        ]
 
         last_word = words[-1]
         for word_match, word_insert in candidates:
@@ -122,7 +127,7 @@ class AutoCompleter(Completer):
                 if rel_fnames:
                     for rel_fname in rel_fnames:
                         yield Completion(
-                            f"`{rel_fname}`", start_position=-len(last_word), display=rel_fname
+                            rel_fname, start_position=-len(last_word), display=rel_fname
                         )
                 else:
                     yield Completion(
@@ -225,7 +230,15 @@ class InputOutput:
         with open(str(filename), "w", encoding=self.encoding) as f:
             f.write(content)
 
-    def get_input(self, root, rel_fnames, addable_rel_fnames, commands, abs_read_only_fnames=None):
+    def get_input(
+        self,
+        root,
+        rel_fnames,
+        addable_rel_fnames,
+        commands,
+        abs_read_only_fnames=None,
+        edit_format=None,
+    ):
         if self.pretty:
             style = dict(style=self.user_input_color) if self.user_input_color else dict()
             self.console.rule(**style)
@@ -233,9 +246,11 @@ class InputOutput:
             print()
 
         rel_fnames = list(rel_fnames)
-        show = " ".join(rel_fnames)
-        if len(show) > 10:
-            show += "\n"
+        show = ""
+        if rel_fnames:
+            show = " ".join(rel_fnames) + "\n"
+        if edit_format:
+            show += edit_format
         show += "> "
 
         inp = ""
@@ -311,6 +326,9 @@ class InputOutput:
         if not self.input_history_file:
             return
         FileHistory(self.input_history_file).append_string(inp)
+        # Also add to the in-memory history if it exists
+        if hasattr(self, "session") and hasattr(self.session, "history"):
+            self.session.history.append_string(inp)
 
     def get_input_history(self):
         if not self.input_history_file:
@@ -328,7 +346,7 @@ class InputOutput:
             log_file.write(content + "\n")
 
     def user_input(self, inp, log_only=True):
-        if not log_only:
+        if not log_only and self.pretty:
             style = dict(style=self.user_input_color) if self.user_input_color else dict()
             self.console.print(Text(inp), **style)
 
@@ -350,15 +368,53 @@ class InputOutput:
         hist = "\n" + content.strip() + "\n\n"
         self.append_chat_history(hist)
 
-    def confirm_ask(self, question, default="y"):
+    def confirm_ask(self, question, default="y", subject=None, explicit_yes_required=False):
         self.num_user_asks += 1
 
+        if default == "y":
+            question += " [Y/n] "
+        elif default == "n":
+            question += " [y/N] "
+        else:
+            question += " [y/n] "
+
+        if subject:
+            self.tool_output()
+            if "\n" in subject:
+                lines = subject.splitlines()
+                max_length = max(len(line) for line in lines)
+                padded_lines = [line.ljust(max_length) for line in lines]
+                padded_subject = "\n".join(padded_lines)
+                self.tool_output(padded_subject, bold=True)
+            else:
+                self.tool_output(subject, bold=True)
+
+        if self.pretty and self.user_input_color:
+            style = {"": self.user_input_color}
+        else:
+            style = dict()
+
+        def is_yesno(text):
+            return "yes".startswith(text.lower()) or "no".startswith(text.lower())
+
+        validator = Validator.from_callable(
+            is_yesno,
+            error_message="Answer yes or no.",
+            move_cursor_to_end=True,
+        )
+
         if self.yes is True:
-            res = "y"
+            res = "n" if explicit_yes_required else "y"
         elif self.yes is False:
             res = "n"
         else:
-            res = prompt(question + " ", default=default)
+            res = prompt(
+                question,
+                style=Style.from_dict(style),
+                validator=validator,
+            )
+            if not res and default:
+                res = default
 
         res = res.lower().strip()
         is_yes = res in ("y", "yes")
@@ -368,15 +424,24 @@ class InputOutput:
 
         return is_yes
 
-    def prompt_ask(self, question, default=None):
+    def prompt_ask(self, question, default="", subject=None):
         self.num_user_asks += 1
+
+        if subject:
+            self.tool_output()
+            self.tool_output(subject, bold=True)
+
+        if self.pretty and self.user_input_color:
+            style = Style.from_dict({"": self.user_input_color})
+        else:
+            style = None
 
         if self.yes is True:
             res = "yes"
         elif self.yes is False:
             res = "no"
         else:
-            res = prompt(question + " ", default=default)
+            res = prompt(question + " ", default=default, style=style)
 
         hist = f"{question.strip()} {res.strip()}"
         self.append_chat_history(hist, linebreak=True, blockquote=True)

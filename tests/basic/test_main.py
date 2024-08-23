@@ -11,6 +11,7 @@ import git
 from prompt_toolkit.input import DummyInput
 from prompt_toolkit.output import DummyOutput
 
+from aider.coders import Coder
 from aider.dump import dump  # noqa: F401
 from aider.io import InputOutput
 from aider.main import check_gitignore, main, setup_git
@@ -514,3 +515,87 @@ class TestMain(TestCase):
             )
 
             self.assertEqual(coder.main_model.info["max_input_tokens"], 1234)
+
+    def test_sonnet_and_cache_options(self):
+        with GitTemporaryDirectory():
+            with patch("aider.coders.base_coder.RepoMap") as MockRepoMap:
+                mock_repo_map = MagicMock()
+                mock_repo_map.max_map_tokens = 1000  # Set a specific value
+                MockRepoMap.return_value = mock_repo_map
+
+                main(
+                    ["--sonnet", "--cache", "--exit", "--yes"],
+                    input=DummyInput(),
+                    output=DummyOutput(),
+                )
+
+                MockRepoMap.assert_called_once()
+                call_args, call_kwargs = MockRepoMap.call_args
+                self.assertEqual(
+                    call_kwargs.get("refresh"), "files"
+                )  # Check the 'refresh' keyword argument
+
+    def test_sonnet_and_cache_prompts_options(self):
+        with GitTemporaryDirectory():
+            coder = main(
+                ["--sonnet", "--cache-prompts", "--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+                return_coder=True,
+            )
+
+            self.assertTrue(coder.add_cache_headers)
+
+    def test_4o_and_cache_options(self):
+        with GitTemporaryDirectory():
+            coder = main(
+                ["--4o", "--cache", "--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+                return_coder=True,
+            )
+
+            self.assertFalse(coder.add_cache_headers)
+
+    def test_return_coder(self):
+        with GitTemporaryDirectory():
+            result = main(
+                ["--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+                return_coder=True,
+            )
+            self.assertIsInstance(result, Coder)
+
+            result = main(
+                ["--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+                return_coder=False,
+            )
+            self.assertIsNone(result)
+
+    def test_map_mul_option(self):
+        with GitTemporaryDirectory():
+            coder = main(
+                ["--map-mul", "5", "--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+                return_coder=True,
+            )
+            self.assertIsInstance(coder, Coder)
+            self.assertEqual(coder.repo_map.map_mul_no_files, 5)
+
+    def test_apply_shell_commands(self):
+        with GitTemporaryDirectory():
+            shell_md = Path("shell.md")
+            shell_md.write_text("```bash\ntouch file.txt\n```")
+
+            main(
+                ["--apply", "shell.md", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+            )
+
+            # shell commands require explicit approval, not just --yes
+            self.assertFalse(Path("file.txt").exists())

@@ -70,7 +70,7 @@ class ModelSettings:
     send_undo_reply: bool = False
     accepts_images: bool = False
     lazy: bool = False
-    reminder_as_sys_msg: bool = False
+    reminder: str = "user"
     examples_as_sys_msg: bool = False
     extra_headers: Optional[dict] = None
     max_tokens: Optional[int] = None
@@ -87,31 +87,31 @@ MODEL_SETTINGS = [
         "gpt-3.5-turbo",
         "whole",
         weak_model_name="gpt-4o-mini",
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "gpt-3.5-turbo-0125",
         "whole",
         weak_model_name="gpt-4o-mini",
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "gpt-3.5-turbo-1106",
         "whole",
         weak_model_name="gpt-4o-mini",
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "gpt-3.5-turbo-0613",
         "whole",
         weak_model_name="gpt-4o-mini",
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "gpt-3.5-turbo-16k-0613",
         "whole",
         weak_model_name="gpt-4o-mini",
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     # gpt-4
     ModelSettings(
@@ -122,7 +122,7 @@ MODEL_SETTINGS = [
         send_undo_reply=True,
         accepts_images=True,
         lazy=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "gpt-4-turbo",
@@ -132,7 +132,7 @@ MODEL_SETTINGS = [
         send_undo_reply=True,
         accepts_images=True,
         lazy=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "openai/gpt-4o",
@@ -142,7 +142,7 @@ MODEL_SETTINGS = [
         send_undo_reply=True,
         accepts_images=True,
         lazy=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "openai/gpt-4o-2024-08-06",
@@ -152,7 +152,7 @@ MODEL_SETTINGS = [
         send_undo_reply=True,
         accepts_images=True,
         lazy=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "gpt-4o-2024-08-06",
@@ -162,7 +162,7 @@ MODEL_SETTINGS = [
         send_undo_reply=True,
         accepts_images=True,
         lazy=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "gpt-4o",
@@ -172,7 +172,7 @@ MODEL_SETTINGS = [
         send_undo_reply=True,
         accepts_images=True,
         lazy=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "gpt-4o-mini",
@@ -180,7 +180,7 @@ MODEL_SETTINGS = [
         weak_model_name="gpt-4o-mini",
         accepts_images=True,
         lazy=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "openai/gpt-4o-mini",
@@ -188,7 +188,7 @@ MODEL_SETTINGS = [
         weak_model_name="openai/gpt-4o-mini",
         accepts_images=True,
         lazy=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "gpt-4-0125-preview",
@@ -197,7 +197,7 @@ MODEL_SETTINGS = [
         use_repo_map=True,
         send_undo_reply=True,
         lazy=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
         examples_as_sys_msg=True,
     ),
     ModelSettings(
@@ -207,7 +207,7 @@ MODEL_SETTINGS = [
         use_repo_map=True,
         send_undo_reply=True,
         lazy=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "gpt-4-vision-preview",
@@ -216,7 +216,7 @@ MODEL_SETTINGS = [
         use_repo_map=True,
         send_undo_reply=True,
         accepts_images=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "gpt-4-0314",
@@ -224,7 +224,7 @@ MODEL_SETTINGS = [
         weak_model_name="gpt-4o-mini",
         use_repo_map=True,
         send_undo_reply=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
         examples_as_sys_msg=True,
     ),
     ModelSettings(
@@ -233,7 +233,7 @@ MODEL_SETTINGS = [
         weak_model_name="gpt-4o-mini",
         use_repo_map=True,
         send_undo_reply=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "gpt-4-32k-0613",
@@ -241,7 +241,7 @@ MODEL_SETTINGS = [
         weak_model_name="gpt-4o-mini",
         use_repo_map=True,
         send_undo_reply=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     # Claude
     ModelSettings(
@@ -275,6 +275,7 @@ MODEL_SETTINGS = [
             "anthropic-beta": ANTHROPIC_BETA_HEADER,
         },
         cache_control=True,
+        reminder=None,
     ),
     ModelSettings(
         "anthropic/claude-3-5-sonnet-20240620",
@@ -283,6 +284,27 @@ MODEL_SETTINGS = [
         use_repo_map=True,
         examples_as_sys_msg=True,
         max_tokens=8192,
+        extra_headers={
+            "anthropic-beta": ANTHROPIC_BETA_HEADER,
+        },
+        cache_control=True,
+        reminder=None,
+    ),
+    ModelSettings(
+        "anthropic/claude-3-haiku-20240307",
+        "whole",
+        weak_model_name="anthropic/claude-3-haiku-20240307",
+        examples_as_sys_msg=True,
+        extra_headers={
+            "anthropic-beta": ANTHROPIC_BETA_HEADER,
+        },
+        cache_control=True,
+    ),
+    ModelSettings(
+        "claude-3-haiku-20240307",
+        "whole",
+        weak_model_name="claude-3-haiku-20240307",
+        examples_as_sys_msg=True,
         extra_headers={
             "anthropic-beta": ANTHROPIC_BETA_HEADER,
         },
@@ -301,6 +323,7 @@ MODEL_SETTINGS = [
             "HTTP-Referer": AIDER_SITE_URL,
             "X-Title": AIDER_APP_NAME,
         },
+        reminder=None,
     ),
     # Vertex AI Claude models
     # Does not yet support 8k token
@@ -311,6 +334,7 @@ MODEL_SETTINGS = [
         use_repo_map=True,
         examples_as_sys_msg=True,
         accepts_images=True,
+        reminder=None,
     ),
     ModelSettings(
         "vertex_ai/claude-3-opus@20240229",
@@ -369,7 +393,7 @@ MODEL_SETTINGS = [
         use_repo_map=True,
         send_undo_reply=True,
         examples_as_sys_msg=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "deepseek/deepseek-coder",
@@ -377,7 +401,7 @@ MODEL_SETTINGS = [
         use_repo_map=True,
         send_undo_reply=True,
         examples_as_sys_msg=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "openrouter/deepseek/deepseek-coder",
@@ -385,7 +409,7 @@ MODEL_SETTINGS = [
         use_repo_map=True,
         send_undo_reply=True,
         examples_as_sys_msg=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
     ModelSettings(
         "openrouter/openai/gpt-4o",
@@ -395,7 +419,7 @@ MODEL_SETTINGS = [
         send_undo_reply=True,
         accepts_images=True,
         lazy=True,
-        reminder_as_sys_msg=True,
+        reminder="sys",
     ),
 ]
 
@@ -431,16 +455,17 @@ class Model:
             self.get_weak_model(weak_model)
 
     def get_model_info(self, model):
-        # Try and do this quickly, without triggering the litellm import
-        spec = importlib.util.find_spec("litellm")
-        if spec:
-            origin = Path(spec.origin)
-            fname = origin.parent / "model_prices_and_context_window_backup.json"
-            if fname.exists():
-                data = json.loads(fname.read_text())
-                info = data.get(model)
-                if info:
-                    return info
+        if not litellm._lazy_module:
+            # Try and do this quickly, without triggering the litellm import
+            spec = importlib.util.find_spec("litellm")
+            if spec:
+                origin = Path(spec.origin)
+                fname = origin.parent / "model_prices_and_context_window_backup.json"
+                if fname.exists():
+                    data = json.loads(fname.read_text())
+                    info = data.get(model)
+                    if info:
+                        return info
 
         # Do it the slow way...
         try:
@@ -479,12 +504,13 @@ class Model:
             return  # <--
 
         if "gpt-3.5" in model or "gpt-4" in model:
-            self.reminder_as_sys_msg = True
+            self.reminder = "sys"
 
         if "3.5-sonnet" in model or "3-5-sonnet" in model:
             self.edit_format = "diff"
             self.use_repo_map = True
             self.examples_as_sys_msg = True
+            self.reminder = None
 
         # use the defaults
         if self.edit_format == "diff":
@@ -650,6 +676,7 @@ def register_litellm_models(model_fnames):
         try:
             with open(model_fname, "r") as model_def_file:
                 model_def = json.load(model_def_file)
+            litellm._load_litellm()
             litellm.register_model(model_def)
         except Exception as e:
             raise Exception(f"Error loading model definition from {model_fname}: {e}")

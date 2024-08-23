@@ -74,7 +74,7 @@ def get_parser(default_config_files, git_root):
         const=gpt_4_model,
         help=f"Use {gpt_4_model} model for the main chat",
     )
-    gpt_4o_model = "gpt-4o"
+    gpt_4o_model = "gpt-4o-2024-08-06"
     group.add_argument(
         "--4o",
         action="store_const",
@@ -199,19 +199,25 @@ def get_parser(default_config_files, git_root):
         "--map-tokens",
         type=int,
         default=None,
-        help="Max number of tokens to use for repo map, use 0 to disable (default: 1024)",
+        help="Suggested number of tokens to use for repo map, use 0 to disable (default: 1024)",
     )
     group.add_argument(
         "--map-refresh",
         choices=["auto", "always", "files", "manual"],
         default="auto",
-        help="Control when the repo map is refreshed (default: auto)",
+        help="Control how often the repo map is refreshed (default: auto)",
     )
     group.add_argument(
         "--cache-prompts",
         action=argparse.BooleanOptionalAction,
         default=False,
-        help="Enable caching of prompts (forces map_refresh='files') (default: False)",
+        help="Enable caching of prompts (default: False)",
+    )
+    group.add_argument(
+        "--map-multiplier-no-files",
+        type=float,
+        default=2,
+        help="Multiplier for map tokens when no files are specified (default: 2)",
     )
     group.add_argument(
         "--max-chat-history-tokens",

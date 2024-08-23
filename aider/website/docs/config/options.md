@@ -36,8 +36,9 @@ usage: aider [-h] [--openai-api-key] [--anthropic-api-key] [--model]
              [--show-model-warnings | --no-show-model-warnings]
              [--map-tokens] [--map-refresh]
              [--cache-prompts | --no-cache-prompts]
-             [--max-chat-history-tokens] [--env-file]
-             [--input-history-file] [--chat-history-file]
+             [--map-multiplier-no-files] [--max-chat-history-tokens]
+             [--env-file] [--input-history-file]
+             [--chat-history-file]
              [--restore-chat-history | --no-restore-chat-history]
              [--llm-history-file] [--dark-mode] [--light-mode]
              [--pretty | --no-pretty] [--stream | --no-stream]
@@ -100,7 +101,7 @@ Aliases:
   - `-4`
 
 ### `--4o`
-Use gpt-4o model for the main chat  
+Use gpt-4o-2024-08-06 model for the main chat  
 Environment variable: `AIDER_4O`  
 
 ### `--mini`
@@ -188,21 +189,26 @@ Aliases:
   - `--no-show-model-warnings`
 
 ### `--map-tokens VALUE`
-Max number of tokens to use for repo map, use 0 to disable (default: 1024)  
+Suggested number of tokens to use for repo map, use 0 to disable (default: 1024)  
 Environment variable: `AIDER_MAP_TOKENS`  
 
 ### `--map-refresh VALUE`
-Control when the repo map is refreshed (default: auto)  
+Control how often the repo map is refreshed (default: auto)  
 Default: auto  
 Environment variable: `AIDER_MAP_REFRESH`  
 
 ### `--cache-prompts`
-Enable caching of prompts (forces map_refresh='files') (default: False)  
+Enable caching of prompts (default: False)  
 Default: False  
 Environment variable: `AIDER_CACHE_PROMPTS`  
 Aliases:
   - `--cache-prompts`
   - `--no-cache-prompts`
+
+### `--map-multiplier-no-files VALUE`
+Multiplier for map tokens when no files are specified (default: 2)  
+Default: 2  
+Environment variable: `AIDER_MAP_MULTIPLIER_NO_FILES`  
 
 ### `--max-chat-history-tokens VALUE`
 Maximum number of tokens to use for chat history. If not specified, uses the model's max_chat_history_tokens.  

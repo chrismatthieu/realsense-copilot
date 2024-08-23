@@ -29,11 +29,12 @@ cog.out(get_help_md())
 | **/lint** | Lint and fix provided files or in-chat files if none provided |
 | **/ls** | List all known files and indicate which are included in the chat session |
 | **/map** | Print out the current repository map |
-| **/map-refresh** | Force a refresh of the repository map and print it out |
+| **/map-refresh** | Force a refresh of the repository map |
 | **/model** | Switch to a new LLM |
 | **/models** | Search the list of available models |
 | **/quit** | Exit the application |
-| **/read** | Add a file to the chat that is for reference, not to be edited |
+| **/read-only** | Add files to the chat that are for reference, not to be edited |
+| **/reset** | Drop all files and clear the chat history |
 | **/run** | Run a shell command and optionally add the output to the chat (alias: !) |
 | **/test** | Run a shell command and add the output to the chat on non-zero exit code |
 | **/tokens** | Report on the number of tokens used by the current chat context |

@@ -284,8 +284,21 @@ class Commands:
     def cmd_clear(self, args):
         "Clear the chat history"
 
+        self._clear_chat_history()
+
+    def _drop_all_files(self):
+        self.coder.abs_fnames = set()
+        self.coder.abs_read_only_fnames = set()
+
+    def _clear_chat_history(self):
         self.coder.done_messages = []
         self.coder.cur_messages = []
+
+    def cmd_reset(self, args):
+        "Drop all files and clear the chat history"
+        self._drop_all_files()
+        self._clear_chat_history()
+        self.io.tool_output("All files dropped and chat history cleared.")
 
     def cmd_tokens(self, args):
         "Report on the number of tokens used by the current chat context"
@@ -554,7 +567,7 @@ class Commands:
                 fname = Path(self.coder.root) / word
 
             if self.coder.repo and self.coder.repo.ignored_file(fname):
-                self.io.tool_error(f"Skipping {fname} that matches aiderignore spec.")
+                self.io.tool_error(f"Skipping {fname} due to aiderignore or --subtree-only.")
                 continue
 
             if fname.exists():
@@ -631,24 +644,26 @@ class Commands:
 
         if not args.strip():
             self.io.tool_output("Dropping all files from the chat session.")
-            self.coder.abs_fnames = set()
-            self.coder.abs_read_only_fnames = set()
+            self._drop_all_files()
             return
 
         filenames = parse_quoted_filenames(args)
         for word in filenames:
+            # Expand tilde in the path
+            expanded_word = os.path.expanduser(word)
+
             # Handle read-only files separately, without glob_filtered_to_repo
-            read_only_matched = [f for f in self.coder.abs_read_only_fnames if word in f]
+            read_only_matched = [f for f in self.coder.abs_read_only_fnames if expanded_word in f]
 
             if read_only_matched:
                 for matched_file in read_only_matched:
                     self.coder.abs_read_only_fnames.remove(matched_file)
                     self.io.tool_output(f"Removed read-only file {matched_file} from the chat")
 
-            matched_files = self.glob_filtered_to_repo(word)
+            matched_files = self.glob_filtered_to_repo(expanded_word)
 
             if not matched_files:
-                matched_files.append(word)
+                matched_files.append(expanded_word)
 
             for matched_file in matched_files:
                 abs_fname = self.coder.abs_root_path(matched_file)
@@ -724,7 +739,7 @@ class Commands:
             add = result.returncode != 0
         else:
             response = self.io.prompt_ask(
-                "Add the output to the chat?\n(Y/n/instructions)", default=""
+                "Add the output to the chat?\n[Y/n/instructions]",
             ).strip()
 
             if response.lower() in ["yes", "y"]:
@@ -1017,25 +1032,36 @@ class Commands:
         except Exception as e:
             self.io.tool_error(f"Error processing clipboard content: {e}")
 
-    def cmd_read(self, args):
-        "Add a file to the chat that is for reference, not to be edited"
+    def cmd_read_only(self, args):
+        "Add files to the chat that are for reference, not to be edited"
         if not args.strip():
-            self.io.tool_error("Please provide a filename to read.")
+            self.io.tool_error("Please provide filenames to read.")
             return
 
-        filename = args.strip()
-        abs_path = os.path.abspath(filename)
+        filenames = parse_quoted_filenames(args)
+        for word in filenames:
+            # Expand the home directory if the path starts with "~"
+            expanded_path = os.path.expanduser(word)
+            abs_path = self.coder.abs_root_path(expanded_path)
 
-        if not os.path.exists(abs_path):
-            self.io.tool_error(f"File not found: {abs_path}")
-            return
+            if not os.path.exists(abs_path):
+                self.io.tool_error(f"File not found: {abs_path}")
+                continue
 
-        if not os.path.isfile(abs_path):
-            self.io.tool_error(f"Not a file: {abs_path}")
-            return
+            if not os.path.isfile(abs_path):
+                self.io.tool_error(f"Not a file: {abs_path}")
+                continue
 
-        self.coder.abs_read_only_fnames.add(abs_path)
-        self.io.tool_output(f"Added {abs_path} to read-only files.")
+            if abs_path in self.coder.abs_fnames:
+                self.io.tool_error(f"{word} is already in the chat as an editable file")
+                continue
+
+            if abs_path in self.coder.abs_read_only_fnames:
+                self.io.tool_error(f"{word} is already in the chat as a read-only file")
+                continue
+
+            self.coder.abs_read_only_fnames.add(abs_path)
+            self.io.tool_output(f"Added {word} to read-only files.")
 
     def cmd_map(self, args):
         "Print out the current repository map"
@@ -1046,12 +1072,10 @@ class Commands:
             self.io.tool_output("No repository map available.")
 
     def cmd_map_refresh(self, args):
-        "Force a refresh of the repository map and print it out"
+        "Force a refresh of the repository map"
         repo_map = self.coder.get_repo_map(force_refresh=True)
         if repo_map:
-            self.io.tool_output(repo_map)
-        else:
-            self.io.tool_output("No repository map available.")
+            self.io.tool_output("The repo map has been refreshed, use /map to view it.")
 
 
 def expand_subdir(file_path):

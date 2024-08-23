@@ -18,8 +18,36 @@ cog.out(text)
 
 ### main branch
 
+- Aider now offers to run shell commands related to changes it makes:
+  - Launch a browser to view updated html/css/js.
+  - Install new dependencies.
+  - Run DB migrations. 
+  - Run the program to exercise changes.
+  - Run new test cases.
+- Show the active chat mode at aider prompt.
+- New `/reset` command to `/drop` files and `/clear` chat history.
+- New `--map-multiplier-no-files` to control repo map size multiplier when no files are in the chat.
+  - Reduced default multiplier to 2.
+- Bugfixes and improvements to auto commit sequencing.
+- Improved formatting of token reports and confirmation dialogs.
+- Default OpenAI model is now `gpt-4o-2024-08-06`.
+- Bumped dependencies to pickup litellm bugfixes.
+- Aider wrote 64% of the code in this release.
+
+### Aider v0.51.0
+
+- Prompt caching for Anthropic models with `--cache-prompts`.
+  - Caches the system prompt, repo map and `/read-only` files.
+- Repo map recomputes less often in large/mono repos or when caching enabled.
+  - Use `--map-refresh <always|files|manual|auto>` to configure.
+- Improved cost estimate logic for caching.
 - Improved editing performance on Jupyter Notebook `.ipynb` files.
-- Work around litellm tokenizer bug for images.
+- Show which config yaml file is loaded with `--verbose`.
+- Bumped dependency versions.
+- Bugfix: properly load `.aider.models.metadata.json` data.
+- Bugfix: Using `--msg /ask ...` caused an exception.
+- Bugfix: litellm tokenizer bug for images.
+- Aider wrote 56% of the code in this release.
 
 ### Aider v0.50.1
 
