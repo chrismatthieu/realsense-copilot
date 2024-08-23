@@ -8,7 +8,7 @@ import pypandoc
 from aider import __version__, urls, utils
 from aider.dump import dump  # noqa: F401
 
-robotchat_user_agent = f"RobotChat/{__version__} +{urls.website}"
+realsense_user_agent = f"realsense/{__version__} +{urls.website}"
 
 # Playwright is nice because it has a simple way to install dependencies on most
 # platforms.
@@ -149,7 +149,7 @@ class Scraper:
                 user_agent = page.evaluate("navigator.userAgent")
                 user_agent = user_agent.replace("Headless", "")
                 user_agent = user_agent.replace("headless", "")
-                user_agent += " " + robotchat_user_agent
+                user_agent += " " + realsense_user_agent
 
                 page.set_extra_http_headers({"User-Agent": user_agent})
 
@@ -179,7 +179,7 @@ class Scraper:
     def scrape_with_httpx(self, url):
         import httpx
 
-        headers = {"User-Agent": f"Mozilla./5.0 ({robotchat_user_agent})"}
+        headers = {"User-Agent": f"Mozilla./5.0 ({realsense_user_agent})"}
         try:
             with httpx.Client(headers=headers, verify=self.verify_ssl) as client:
                 response = client.get(url)

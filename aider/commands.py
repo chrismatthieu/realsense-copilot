@@ -68,7 +68,7 @@ class Commands:
 
         show_formats = OrderedDict(
             [
-                ("help", "Get help about using robotchat (usage, config, troubleshoot)."),
+                ("help", "Get help about using Realsense (usage, config, troubleshoot)."),
                 ("ask", "Ask questions about your code without making any changes."),
                 ("code", "Ask for changes to your code (using the best edit format)."),
             ]
@@ -405,7 +405,7 @@ class Commands:
         self.io.tool_output(f"{cost_pad}{fmt(limit)} tokens max context window size")
 
     def cmd_undo(self, args):
-        "Undo the last git commit if it was done by robotchat"
+        "Undo the last git commit if it was done by Realsense"
         if not self.coder.repo:
             self.io.tool_error("No git repository found.")
             return
@@ -454,7 +454,7 @@ class Commands:
         last_commit_hash = self.coder.repo.repo.head.commit.hexsha[:7]
         last_commit_message = self.coder.repo.repo.head.commit.message.strip()
         if last_commit_hash not in self.coder.aider_commit_hashes:
-            self.io.tool_error("The last commit was not made by robotchat in this chat session.")
+            self.io.tool_error("The last commit was not made by Realsense in this chat session.")
             self.io.tool_error(
                 "You could try `/git reset --hard HEAD^` but be aware that this is a destructive"
                 " command!"
@@ -479,7 +479,7 @@ class Commands:
             return prompts.undo_command_reply
 
     def cmd_diff(self, args=""):
-        "Display the diff of the last robotchat commit"
+        "Display the diff of the last Realsense commit"
         if not self.coder.repo:
             self.io.tool_error("No git repository found.")
             return
@@ -619,7 +619,7 @@ class Commands:
                 if is_image_file(matched_file) and not self.coder.main_model.accepts_images:
                     self.io.tool_error(
                         f"Cannot add image file {matched_file} as the"
-                        f" {self.coder.main_model.name} does not support image.\nYou can run `robotchat"
+                        f" {self.coder.main_model.name} does not support image.\nYou can run `realsense"
                         " --4-turbo-vision` to use GPT-4 Turbo with Vision."
                     )
                     continue
@@ -825,10 +825,10 @@ class Commands:
             else:
                 self.io.tool_output(f"{cmd} No description available.")
         self.io.tool_output()
-        self.io.tool_output("Use `/help <question>` to ask questions about how to use robotchat.")
+        self.io.tool_output("Use `/help <question>` to ask questions about how to use Realsense.")
 
     def cmd_help(self, args):
-        "Ask questions about robotchat"
+        "Ask questions about Realsense"
 
         if not args.strip():
             self.basic_help()

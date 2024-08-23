@@ -101,9 +101,9 @@ class GitRepo:
             commit_message = self.get_commit_message(diffs, context)
 
         if aider_edits and self.attribute_commit_message_author:
-            commit_message = "robotchat: " + commit_message
+            commit_message = "realsense: " + commit_message
         elif self.attribute_commit_message_committer:
-            commit_message = "robotchat: " + commit_message
+            commit_message = "realsense: " + commit_message
 
         if not commit_message:
             commit_message = "(no commit message provided)"

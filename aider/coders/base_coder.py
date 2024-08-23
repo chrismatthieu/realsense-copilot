@@ -159,7 +159,7 @@ class Coder:
 
     def get_announcements(self):
         lines = []
-        lines.append(f"RobotChat v{__version__}")
+        lines.append(f"Realsense v{__version__}")
 
         # Model
         main_model = self.main_model

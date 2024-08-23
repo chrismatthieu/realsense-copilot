@@ -11,9 +11,9 @@ body:
   - type: textarea
     attributes:
       label: Version and model info
-      description: Please include robotchat version, model being used (`gpt-4-xxx`, etc) and any other switches or config settings that are active.
+      description: Please include realsense version, model being used (`gpt-4-xxx`, etc) and any other switches or config settings that are active.
       placeholder: |
-        RobotChat v0.XX.Y
+        Realsense v0.XX.Y
         Model: gpt-N-... using ???? edit format
         Git repo: .git with ### files
         Repo-map: using #### tokens

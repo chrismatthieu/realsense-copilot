@@ -4,8 +4,8 @@
 # [[[end]]]
 
 [project]
-name = "robot-chat"
-description = "RobotChat is AI robotics programming in your terminal"
+name = "realsense-copilot"
+description = "RealSense Copilot is AI programming for Intel RealSense cameras in your terminal"
 readme = "README.md"
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -27,7 +27,7 @@ dynamic = ["dependencies", "optional-dependencies", "version"]
 Homepage = "https://github.com/paul-gauthier/aider"
 
 [project.scripts]
-robotchat = "aider.main:main"
+realsense = "aider.main:main"
 
 [tool.setuptools.dynamic]
 version = { attr = "aider.__init__.__version__" }
