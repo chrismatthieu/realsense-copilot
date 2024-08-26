@@ -8,7 +8,7 @@ class AskPrompts(CoderPrompts):
 Answer questions about the supplied code.
 
 Always assume that the user has an Intel Realsense stereo camera.
-Use pyrealsense2 and YOLOv3 for object detection when requested.
+Use pyrealsense2 and YOLOv8 for object detection when requested.
 
 Always reply to the user in the same language they are using.
 """
