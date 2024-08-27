@@ -31,8 +31,9 @@ from aider.llm import litellm
 from aider.mdstream import MarkdownStream
 from aider.repo import GitRepo
 from aider.repomap import RepoMap
+from aider.run_cmd import run_cmd
 from aider.sendchat import retry_exceptions, send_completion
-from aider.utils import format_content, format_messages, is_image_file
+from aider.utils import format_content, format_messages, format_tokens, is_image_file
 
 from ..dump import dump  # noqa: F401
 from .chat_chunks import ChatChunks
@@ -89,6 +90,9 @@ class Coder:
     message_tokens_sent = 0
     message_tokens_received = 0
     add_cache_headers = False
+    cache_warming_thread = None
+    num_cache_warming_pings = 0
+    suggest_shell_commands = True
 
     @classmethod
     def create(
@@ -171,7 +175,7 @@ class Coder:
             prefix = "Model"
 
         output = f"{prefix}: {main_model.name} with {self.edit_format} edit format"
-        if self.add_cache_headers:
+        if self.add_cache_headers or main_model.caches_by_default:
             output += ", prompt cache"
         if main_model.info.get("supports_assistant_prefill"):
             output += ", infinite output"
@@ -204,7 +208,7 @@ class Coder:
                 if map_tokens > max_map_tokens:
                     lines.append(
                         f"Warning: map-tokens > {max_map_tokens} is not recommended as too much"
-                        " irrelevant code can confuse GPT."
+                        " irrelevant code can confuse LLMs."
                     )
             else:
                 lines.append("Repo-map: disabled because map_tokens == 0")
@@ -251,11 +255,17 @@ class Coder:
         total_cost=0.0,
         map_refresh="auto",
         cache_prompts=False,
+        num_cache_warming_pings=0,
+        suggest_shell_commands=True,
     ):
         self.commit_before_message = []
         self.aider_commit_hashes = set()
         self.rejected_urls = set()
         self.abs_root_path_cache = {}
+
+        self.suggest_shell_commands = suggest_shell_commands
+
+        self.num_cache_warming_pings = num_cache_warming_pings
 
         if not fnames:
             fnames = []
@@ -776,7 +786,7 @@ class Coder:
             if url not in self.rejected_urls:
                 if self.io.confirm_ask("Add URL to the chat?", subject=url, group=group):
                     inp += "\n\n"
-                    inp += self.commands.cmd_web(url, paginate=False)
+                    inp += self.commands.cmd_web(url)
                     added_urls.append(url)
                 else:
                     self.rejected_urls.add(url)
@@ -981,15 +991,67 @@ class Coder:
         if self.add_cache_headers:
             chunks.add_cache_control_headers()
 
-        msgs = chunks.all_messages()
-        return msgs
+        return chunks
+
+    def warm_cache(self, chunks):
+        if not self.add_cache_headers:
+            return
+        if not self.num_cache_warming_pings:
+            return
+
+        delay = 5 * 60 - 5
+        self.next_cache_warm = time.time() + delay
+        self.warming_pings_left = self.num_cache_warming_pings
+        self.cache_warming_chunks = chunks
+
+        if self.cache_warming_thread:
+            return
+
+        def warm_cache_worker():
+            while True:
+                time.sleep(1)
+                if self.warming_pings_left <= 0:
+                    continue
+                now = time.time()
+                if now < self.next_cache_warm:
+                    continue
+
+                self.warming_pings_left -= 1
+                self.next_cache_warm = time.time() + delay
+
+                try:
+                    completion = litellm.completion(
+                        model=self.main_model.name,
+                        messages=self.cache_warming_chunks.cacheable_messages(),
+                        stream=False,
+                        max_tokens=1,
+                        extra_headers=self.main_model.extra_headers,
+                    )
+                except Exception as err:
+                    self.io.tool_error(f"Cache warming error: {str(err)}")
+                    continue
+
+                cache_hit_tokens = getattr(
+                    completion.usage, "prompt_cache_hit_tokens", 0
+                ) or getattr(completion.usage, "cache_read_input_tokens", 0)
+
+                # if self.verbose:
+                self.io.tool_output(f"Warmed {format_tokens(cache_hit_tokens)} cached tokens.")
+
+        self.cache_warming_thread = threading.Timer(0, warm_cache_worker)
+        self.cache_warming_thread.daemon = True
+        self.cache_warming_thread.start()
+
+        return chunks
 
     def send_message(self, inp):
         self.cur_messages += [
             dict(role="user", content=inp),
         ]
 
-        messages = self.format_messages()
+        chunks = self.format_messages()
+        messages = chunks.all_messages()
+        self.warm_cache(chunks)
 
         if self.verbose:
             utils.show_messages(messages, functions=self.functions)
@@ -1108,7 +1170,12 @@ class Coder:
                     self.update_cur_messages()
                     return
 
-        self.run_shell_commands()
+        shared_output = self.run_shell_commands()
+        if shared_output:
+            self.cur_messages += [
+                dict(role="user", content=shared_output),
+                dict(role="assistant", content="Ok"),
+            ]
 
         if edited and self.auto_test:
             test_errors = self.commands.cmd_test(self.test_cmd)
@@ -1435,14 +1502,6 @@ class Coder:
             self.message_tokens_sent += prompt_tokens
 
         self.message_tokens_received += completion_tokens
-
-        def format_tokens(count):
-            if count < 1000:
-                return f"{count}"
-            elif count < 10000:
-                return f"{count / 1000:.1f}k"
-            else:
-                return f"{round(count / 1000)}k"
 
         tokens_report = f"Tokens: {format_tokens(self.message_tokens_sent)} sent"
 
@@ -1810,13 +1869,20 @@ class Coder:
         return
 
     def run_shell_commands(self):
+        if not self.suggest_shell_commands:
+            return ""
+
         done = set()
         group = ConfirmGroup(set(self.shell_commands))
+        accumulated_output = ""
         for command in self.shell_commands:
             if command in done:
                 continue
             done.add(command)
-            self.handle_shell_commands(command, group)
+            output = self.handle_shell_commands(command, group)
+            if output:
+                accumulated_output += output + "\n\n"
+        return accumulated_output
 
     def handle_shell_commands(self, commands_str, group):
         commands = commands_str.strip().splitlines()
@@ -1829,6 +1895,7 @@ class Coder:
         ):
             return
 
+        accumulated_output = ""
         for command in commands:
             command = command.strip()
             if not command or command.startswith("#"):
@@ -1838,6 +1905,13 @@ class Coder:
             self.io.tool_output(f"Running {command}")
             # Add the command to input history
             self.io.add_to_input_history(f"/run {command.strip()}")
-            result = self.run_interactive_subprocess(command)
-            if result and result.stdout:
-                self.io.tool_output(result.stdout)
+            exit_status, output = run_cmd(command)
+            if output:
+                accumulated_output += f"Output from {command}\n{output}\n"
+
+        if accumulated_output.strip() and not self.io.confirm_ask(
+            "Add command output to the chat?"
+        ):
+            accumulated_output = ""
+
+        return accumulated_output

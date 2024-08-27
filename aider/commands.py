@@ -9,11 +9,11 @@ from pathlib import Path
 import git
 import pyperclip
 from PIL import Image, ImageGrab
-from rich.text import Text
 
 from aider import models, prompts, voice
 from aider.help import Help, install_help_extra
 from aider.llm import litellm
+from aider.run_cmd import run_cmd
 from aider.scrape import Scraper, install_playwright
 from aider.utils import is_image_file
 
@@ -119,8 +119,8 @@ class Commands:
         else:
             self.io.tool_output("Please provide a partial model name to search for.")
 
-    def cmd_web(self, args, paginate=True):
-        "Scrape a webpage, convert to markdown and add to the chat"
+    def cmd_web(self, args):
+        "Scrape a webpage, convert to markdown and send in a message"
 
         url = args.strip()
         if not url:
@@ -141,10 +141,6 @@ class Commands:
         content = f"{url}:\n\n" + content
 
         self.io.tool_output("... done.")
-
-        if paginate:
-            with self.io.console.pager():
-                self.io.console.print(Text(content))
 
         return content
 
@@ -553,7 +549,7 @@ class Commands:
         return res
 
     def cmd_add(self, args):
-        "Add files to the chat so GPT can edit them or review them in detail"
+        "Add files to the chat so aider can edit them or review them in detail"
 
         added_fnames = []
 
@@ -627,8 +623,7 @@ class Commands:
                 if is_image_file(matched_file) and not self.coder.main_model.accepts_images:
                     self.io.tool_error(
                         f"Cannot add image file {matched_file} as the"
-                        f" {self.coder.main_model.name} does not support image.\nYou can run `realsense"
-                        " --4-turbo-vision` to use GPT-4 Turbo with Vision."
+                        f" {self.coder.main_model.name} does not support images."
                     )
                     continue
                 content = self.io.read_text(abs_file_path)
@@ -722,33 +717,20 @@ class Commands:
 
     def cmd_run(self, args, add_on_nonzero_exit=False):
         "Run a shell command and optionally add the output to the chat (alias: !)"
-        combined_output = None
+        exit_status, combined_output = run_cmd(args)
         instructions = None
-        try:
-            result = subprocess.run(
-                args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                shell=True,
-                encoding=self.io.encoding,
-                errors="replace",
-            )
-            combined_output = result.stdout
-        except Exception as e:
-            self.io.tool_error(f"Error running command: {e}")
 
         if combined_output is None:
             return
 
-        self.io.tool_output(combined_output)
-
         if add_on_nonzero_exit:
-            add = result.returncode != 0
+            add = exit_status != 0
         else:
+            self.io.tool_output()
             response = self.io.prompt_ask(
-                "Add the output to the chat?\n[Y/n/instructions]",
+                "Add the output to the chat?\n(Y)es/(n)o/message with instructions:",
             ).strip()
+            self.io.tool_output()
 
             if response.lower() in ["yes", "y"]:
                 add = True

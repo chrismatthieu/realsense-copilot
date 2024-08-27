@@ -21,6 +21,15 @@ load whichever is found first.
 
 {% include env-keys-tip.md %}
 
+## A note on lists
+
+The syntax for specifying a list of values is not standard yaml.
+Instead, use this format:
+
+```
+read: [CONVENTIONS.md, anotherfile.txt, thirdfile.py]
+```
+
 ## Sample YAML config file
 
 Below is a sample of the YAML config file, which you
@@ -136,6 +145,9 @@ cog.outl("```")
 
 ## Enable caching of prompts (default: False)
 #cache-prompts: false
+
+## Number of times to ping at 5min intervals to keep prompt cache warm (default: 0)
+#cache-keepalive-pings: false
 
 ## Multiplier for map tokens when no files are specified (default: 2)
 #map-multiplier-no-files: true
@@ -281,6 +293,12 @@ cog.outl("```")
 ## Check for new aider versions on launch
 #check-update: true
 
+## Install the latest version from the main branch
+#install-main-branch: false
+
+## Upgrade aider to the latest version from PyPI
+#upgrade: false
+
 ## Apply the changes from the given file instead of running the chat (debug)
 #apply:
 
@@ -313,5 +331,8 @@ cog.outl("```")
 
 ## Run aider in your browser
 #gui: false
+
+## Enable/disable suggesting shell commands (default: True)
+#suggest-shell-commands: true
 ```
 <!--[[[end]]]-->

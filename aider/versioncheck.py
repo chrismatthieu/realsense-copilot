@@ -10,12 +10,36 @@ from aider import utils
 from aider.dump import dump  # noqa: F401
 
 
+def install_from_main_branch(io):
+    """
+    Install the latest version of aider from the main branch of the GitHub repository.
+    """
+    return utils.check_pip_install_extra(
+        io,
+        None,
+        "Install the development version of aider from the main branch?",
+        ["--upgrade", "git+https://github.com/paul-gauthier/aider.git"],
+    )
+
+
+def install_upgrade(io):
+    """
+    Install the latest version of aider from PyPI.
+    """
+    return utils.check_pip_install_extra(
+        io,
+        None,
+        "Install the latest version of aider from PyPI?",
+        ["--upgrade", "aider-chat"],
+    )
+
+
 def check_version(io, just_check=False, verbose=False):
     fname = Path.home() / ".aider" / "caches" / "versioncheck"
     if not just_check and fname.exists():
         day = 60 * 60 * 24
-        since = time.time() - fname.stat().st_mtime
-        if since < day:
+        since = time.time() - os.path.getmtime(fname)
+        if 0 < since < day:
             if verbose:
                 hours = since / 60 / 60
                 io.tool_output(f"Too soon to check version: {hours:.1f} hours")

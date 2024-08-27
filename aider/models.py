@@ -14,7 +14,7 @@ from PIL import Image
 
 from aider import urls
 from aider.dump import dump  # noqa: F401
-from aider.llm import AIDER_APP_NAME, AIDER_SITE_URL, litellm
+from aider.llm import litellm
 
 DEFAULT_MODEL_NAME = "gpt-4o"
 ANTHROPIC_BETA_HEADER = "max-tokens-3-5-sonnet-2024-07-15,prompt-caching-2024-07-31"
@@ -75,6 +75,7 @@ class ModelSettings:
     extra_headers: Optional[dict] = None
     max_tokens: Optional[int] = None
     cache_control: bool = False
+    caches_by_default: bool = False
 
 
 # https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
@@ -320,8 +321,6 @@ MODEL_SETTINGS = [
         max_tokens=8192,
         extra_headers={
             "anthropic-beta": "max-tokens-3-5-sonnet-2024-07-15",
-            "HTTP-Referer": AIDER_SITE_URL,
-            "X-Title": AIDER_APP_NAME,
         },
         reminder="user",
     ),
@@ -402,6 +401,7 @@ MODEL_SETTINGS = [
         send_undo_reply=True,
         examples_as_sys_msg=True,
         reminder="sys",
+        caches_by_default=True,
     ),
     ModelSettings(
         "openrouter/deepseek/deepseek-coder",
@@ -429,6 +429,20 @@ model_info_url = (
 )
 
 
+def get_model_flexible(model, content):
+    info = content.get(model, dict())
+    if info:
+        return info
+
+    pieces = model.split("/")
+    if len(pieces) == 2:
+        info = content.get(pieces[1])
+        if info and info.get("litellm_provider") == pieces[0]:
+            return info
+
+    return dict()
+
+
 def get_model_info(model):
     if not litellm._lazy_module:
         cache_dir = Path.home() / ".aider" / "caches"
@@ -443,8 +457,7 @@ def get_model_info(model):
         if cache_age < 60 * 60 * 24:
             try:
                 content = json.loads(cache_file.read_text())
-                info = content.get(model, dict())
-                return info
+                return get_model_flexible(model, content)
             except Exception as ex:
                 print(str(ex))
 
@@ -455,8 +468,7 @@ def get_model_info(model):
             if response.status_code == 200:
                 content = response.json()
                 cache_file.write_text(json.dumps(content, indent=4))
-                info = content.get(model, dict())
-                return info
+                return get_model_flexible(model, content)
         except Exception as ex:
             print(str(ex))
 
@@ -730,9 +742,11 @@ def sanity_check_model(io, model):
 
     if model.missing_keys:
         show = True
-        io.tool_error(f"Model {model}: Missing these environment variables:")
+        io.tool_error(f"Model {model}: Environment variables status:")
         for key in model.missing_keys:
-            io.tool_error(f"- {key}")
+            value = os.environ.get(key, "")
+            status = "✓ Set" if value else "✗ Not set"
+            io.tool_error(f"- {key}: {status}")
 
         if platform.system() == "Windows" or True:
             io.tool_output(

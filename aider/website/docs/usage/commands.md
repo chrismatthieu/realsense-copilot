@@ -14,7 +14,7 @@ cog.out(get_help_md())
 
 |Command|Description|
 |:------|:----------|
-| **/add** | Add files to the chat so GPT can edit them or review them in detail |
+| **/add** | Add files to the chat so aider can edit them or review them in detail |
 | **/ask** | Ask questions about the code base without editing any files |
 | **/chat-mode** | Switch to a new chat mode |
 | **/clear** | Clear the chat history |
@@ -40,7 +40,7 @@ cog.out(get_help_md())
 | **/tokens** | Report on the number of tokens used by the current chat context |
 | **/undo** | Undo the last git commit if it was done by aider |
 | **/voice** | Record and transcribe voice input |
-| **/web** | Scrape a webpage, convert to markdown and add to the chat |
+| **/web** | Scrape a webpage, convert to markdown and send in a message |
 
 <!--[[[end]]]-->
 

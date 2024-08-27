@@ -51,3 +51,12 @@ class ChatChunks:
         content["cache_control"] = {"type": "ephemeral"}
 
         messages[-1]["content"] = [content]
+
+    def cacheable_messages(self):
+        messages = self.all_messages()
+        for i, message in enumerate(reversed(messages)):
+            if isinstance(message.get("content"), list) and message["content"][0].get(
+                "cache_control"
+            ):
+                return messages[: len(messages) - i]
+        return messages

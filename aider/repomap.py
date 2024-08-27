@@ -2,6 +2,7 @@ import colorsys
 import math
 import os
 import random
+import sqlite3
 import sys
 import time
 import warnings
@@ -163,9 +164,11 @@ class RepoMap:
 
     def load_tags_cache(self):
         path = Path(self.root) / self.TAGS_CACHE_DIR
-        if not path.exists():
-            self.cache_missing = True
-        self.TAGS_CACHE = Cache(path)
+        try:
+            self.TAGS_CACHE = Cache(path)
+        except sqlite3.OperationalError:
+            self.io.tool_error(f"Unable to use tags cache, delete {path} to resolve.")
+            self.TAGS_CACHE = dict()
 
     def save_tags_cache(self):
         pass

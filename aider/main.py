@@ -17,7 +17,7 @@ from aider.history import ChatSummary
 from aider.io import InputOutput
 from aider.llm import litellm  # noqa: F401; properly init litellm on launch
 from aider.repo import GitRepo
-from aider.versioncheck import check_version
+from aider.versioncheck import check_version, install_from_main_branch, install_upgrade
 
 from .dump import dump  # noqa: F401
 
@@ -54,7 +54,7 @@ def setup_git(git_root, io):
     repo = None
     if git_root:
         repo = git.Repo(git_root)
-    elif io.confirm_ask("No git repo found, create one to track GPT's changes (recommended)?"):
+    elif io.confirm_ask("No git repo found, create one to track aider's changes (recommended)?"):
         git_root = str(Path.cwd().resolve())
         repo = git.Repo.init(git_root)
         io.tool_output("Git repository created in the current working directory.")
@@ -430,6 +430,14 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         update_available = check_version(io, just_check=True, verbose=args.verbose)
         return 0 if not update_available else 1
 
+    if args.install_main_branch:
+        success = install_from_main_branch(io)
+        return 0 if success else 1
+
+    if args.upgrade:
+        success = install_upgrade(io)
+        return 0 if success else 1
+
     if args.check_update:
         check_version(io, verbose=args.verbose)
 
@@ -543,6 +551,8 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             map_refresh=args.map_refresh,
             cache_prompts=args.cache_prompts,
             map_mul_no_files=args.map_multiplier_no_files,
+            num_cache_warming_pings=args.cache_keepalive_pings,
+            suggest_shell_commands=args.suggest_shell_commands,
         )
     except ValueError as err:
         io.tool_error(str(err))

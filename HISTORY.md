@@ -1,6 +1,27 @@
 
 # Release history
 
+### Aider v0.53.0
+
+- [Keep your prompt cache from expiring](https://aider.chat/docs/usage/caching.html#preventing-cache-expiration) with `--cache-keepalive-pings`.
+  - Pings the API every 5min to keep the cache warm.
+- You can now bulk accept/reject a series of add url and run shell confirmations.
+- Improved matching of filenames from S/R blocks with files in chat.
+- Stronger prompting for Sonnet to make edits in code chat mode.
+- Stronger prompting for the LLM to specify full file paths.
+- Improved shell command prompting.
+- Weak model now uses `extra_headers`, to support Anthropic beta features.
+- New `--install-main-branch` to update to the latest dev version of aider.
+- Improved error messages on attempt to add not-git subdir to chat.
+- Show model metadata info on `--verbose`.
+- Improved warnings when LLMs env variables aren't set.
+- Bugfix to windows filenames which contain `\_`.
+- Aider wrote 59% of the code in this release.
+
+### Aider v0.52.1
+
+- Bugfix for NameError when applying edits.
+
 ### Aider v0.52.0
 
 - Aider now offers to run shell commands:

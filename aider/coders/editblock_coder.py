@@ -1,7 +1,6 @@
 import difflib
 import math
 import re
-import subprocess
 import sys
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -23,30 +22,18 @@ class EditBlockCoder(Coder):
         content = self.partial_response_content
 
         # might raise ValueError for malformed ORIG/UPD blocks
-        edits = list(find_original_update_blocks(content, self.fence))
+        edits = list(
+            find_original_update_blocks(
+                content,
+                self.fence,
+                self.get_inchat_relative_files(),
+            )
+        )
 
         self.shell_commands += [edit[1] for edit in edits if edit[0] is None]
         edits = [edit for edit in edits if edit[0] is not None]
 
         return edits
-
-    def run_interactive_subprocess(self, command):
-        try:
-            result = subprocess.run(
-                command,
-                text=True,
-                shell=True,
-                encoding=self.io.encoding,
-                errors="replace",
-            )
-            if result.returncode == 0:
-                return
-            self.io.tool_error(f"Command '{command}' exited with status {result.returncode}")
-        except Exception as e:
-            self.io.tool_error(f"Error running command '{command}': {str(e)}")
-
-        self.io.tool_output(f"To retry and share output with the LLM: /run {command}")
-        self.io.tool_output("You can find this command in your input history with up-arrow.")
 
     def apply_edits(self, edits):
         failed = []
@@ -59,7 +46,6 @@ class EditBlockCoder(Coder):
             new_content = do_replace(full_path, content, original, updated, self.fence)
             if not new_content:
                 # try patching any of the other files in the chat
-                dump(self.abs_fnames)
                 for full_path in self.abs_fnames:
                     content = self.io.read_text(full_path)
                     new_content = do_replace(full_path, content, original, updated, self.fence)
@@ -409,12 +395,14 @@ def strip_filename(filename, fence):
     filename = filename.strip()
     filename = filename.strip("`")
     filename = filename.strip("*")
-    filename = filename.replace("\\_", "_")
+
+    # https://github.com/paul-gauthier/aider/issues/1158
+    # filename = filename.replace("\\_", "_")
 
     return filename
 
 
-def find_original_update_blocks(content, fence=DEFAULT_FENCE):
+def find_original_update_blocks(content, fence=DEFAULT_FENCE, valid_fnames=None):
     lines = content.splitlines(keepends=True)
     i = 0
     current_filename = None
@@ -454,7 +442,7 @@ def find_original_update_blocks(content, fence=DEFAULT_FENCE):
         # Check for SEARCH/REPLACE blocks
         if line.strip() == HEAD:
             try:
-                filename = find_filename(lines[max(0, i - 3) : i], fence)
+                filename = find_filename(lines[max(0, i - 3) : i], fence, valid_fnames)
                 if not filename:
                     if current_filename:
                         filename = current_filename
@@ -491,7 +479,7 @@ def find_original_update_blocks(content, fence=DEFAULT_FENCE):
         i += 1
 
 
-def find_filename(lines, fence):
+def find_filename(lines, fence, valid_fnames):
     """
     Deepseek Coder v2 has been doing this:
 
@@ -505,19 +493,54 @@ def find_filename(lines, fence):
 
     This is a more flexible search back for filenames.
     """
+
+    if valid_fnames is None:
+        valid_fnames = []
+
     # Go back through the 3 preceding lines
     lines.reverse()
     lines = lines[:3]
 
+    filenames = []
     for line in lines:
         # If we find a filename, done
         filename = strip_filename(line, fence)
         if filename:
-            return filename
+            filenames.append(filename)
 
         # Only continue as long as we keep seeing fences
         if not line.startswith(fence[0]):
-            return
+            break
+
+    if not filenames:
+        return
+
+    # pick the *best* filename found
+
+    # Check for exact match first
+    for fname in filenames:
+        if fname in valid_fnames:
+            return fname
+
+    # Check for partial match (basename match)
+    for fname in filenames:
+        for vfn in valid_fnames:
+            if fname == Path(vfn).name:
+                return vfn
+
+    # Perform fuzzy matching with valid_fnames
+    for fname in filenames:
+        close_matches = difflib.get_close_matches(fname, valid_fnames, n=1, cutoff=0.8)
+        if len(close_matches) == 1:
+            return close_matches[0]
+
+    # If no fuzzy match, look for a file w/extension
+    for fname in filenames:
+        if "." in fname:
+            return fname
+
+    if filenames:
+        return filenames[0]
 
 
 def find_similar_lines(search_lines, content_lines, threshold=0.6):
