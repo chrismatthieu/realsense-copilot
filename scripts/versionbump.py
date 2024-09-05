@@ -104,7 +104,7 @@ def main():
 
     with open("aider/__init__.py", "r") as f:
         content = f.read()
-    updated_content = re.sub(r'__version__ = ".?"', f'__version__ = "{new_version}"', content)
+    updated_content = re.sub(r'__version__ = ".+?"', f'__version__ = "{new_version}"', content)
 
     print("Updating aider/__init__.py with new version:")
     print(updated_content)
@@ -127,7 +127,7 @@ def main():
 
     new_dev_version = f"{incremented_version}.dev"
     updated_dev_content = re.sub(
-        r'__version__ = ".?"', f'__version__ = "{new_dev_version}"', content
+        r'__version__ = ".+?"', f'__version__ = "{new_dev_version}"', content
     )
 
     print()
