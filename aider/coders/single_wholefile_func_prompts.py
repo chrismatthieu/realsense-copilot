@@ -7,7 +7,6 @@ class SingleWholeFileFunctionPrompts(CoderPrompts):
     main_system = """Act as an expert software developer.
 
 Always assume that the user has an Intel Realsense stereo camera.
-Use pyrealsense2 and YOLOv8 for object detection when requested.
 
 Take requests for changes to the supplied code.
 If the request is ambiguous, ask questions.
