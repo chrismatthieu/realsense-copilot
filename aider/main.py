@@ -1,8 +1,10 @@
 import configparser
+import json
 import os
 import re
 import sys
 import threading
+import traceback
 from pathlib import Path
 
 import git
@@ -300,22 +302,26 @@ def sanity_check_repo(repo, io):
 
     try:
         repo.get_tracked_files()
-        return True
+        if not repo.git_repo_error:
+            return True
+        error_msg = str(repo.git_repo_error)
     except ANY_GIT_ERROR as exc:
         error_msg = str(exc)
+        bad_ver = "version in (1, 2)" in error_msg
+    except AssertionError as exc:
+        error_msg = str(exc)
+        bad_ver = True
 
-        if "version in (1, 2)" in error_msg:
-            io.tool_error("Aider only works with git repos with version number 1 or 2.")
-            io.tool_output(
-                "You may be able to convert your repo: git update-index --index-version=2"
-            )
-            io.tool_output("Or run aider --no-git to proceed without using git.")
-            io.tool_output("https://github.com/paul-gauthier/aider/issues/211")
-            return False
-
-        io.tool_error("Unable to read git repository, it may be corrupt?")
-        io.tool_output(error_msg)
+    if bad_ver:
+        io.tool_error("Aider only works with git repos with version number 1 or 2.")
+        io.tool_output("You may be able to convert your repo: git update-index --index-version=2")
+        io.tool_output("Or run aider --no-git to proceed without using git.")
+        io.tool_output("https://github.com/paul-gauthier/aider/issues/211")
         return False
+
+    io.tool_error("Unable to read git repository, it may be corrupt?")
+    io.tool_output(error_msg)
+    return False
 
 
 def main(argv=None, input=None, output=None, force_git_root=None, return_coder=False):
@@ -468,8 +474,8 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if args.check_update:
         check_version(io, verbose=args.verbose)
 
-    if args.models:
-        models.print_matching_models(io, args.models)
+    if args.list_models:
+        models.print_matching_models(io, args.list_models)
         return 0
 
     if args.git:
@@ -484,6 +490,8 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     cmd_line = " ".join(sys.argv)
     cmd_line = scrub_sensitive_info(args, cmd_line)
     io.tool_output(cmd_line, log_only=True)
+
+    check_and_load_imports(io, verbose=args.verbose)
 
     if args.anthropic_api_key:
         os.environ["ANTHROPIC_API_KEY"] = args.anthropic_api_key
@@ -511,8 +519,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
 
     if args.verbose:
         io.tool_output("Model info:")
-        for key, value in main_model.info.items():
-            io.tool_output(f"  {key}: {value}")
+        io.tool_output(json.dumps(main_model.info, indent=4))
 
     lint_cmds = parse_lint_cmds(args.lint_cmd, io)
     if lint_cmds is None:
@@ -593,6 +600,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             map_mul_no_files=args.map_multiplier_no_files,
             num_cache_warming_pings=args.cache_keepalive_pings,
             suggest_shell_commands=args.suggest_shell_commands,
+            chat_language=args.chat_language,
         )
     except ValueError as err:
         io.tool_error(str(err))
@@ -685,10 +693,6 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if args.exit:
         return
 
-    thread = threading.Thread(target=load_slow_imports)
-    thread.daemon = True
-    thread.start()
-
     while True:
         try:
             coder.run()
@@ -705,19 +709,72 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
                 coder.show_announcements()
 
 
-def load_slow_imports():
+def check_and_load_imports(io, verbose=False):
+    installs_file = Path.home() / ".aider" / "installs.json"
+    key = (__version__, sys.executable)
+
+    if verbose:
+        io.tool_output(
+            f"Checking imports for version {__version__} and executable {sys.executable}"
+        )
+        io.tool_output(f"Installs file: {installs_file}")
+
+    try:
+        if installs_file.exists():
+            with open(installs_file, "r") as f:
+                installs = json.load(f)
+            if verbose:
+                io.tool_output("Installs file exists and loaded")
+        else:
+            installs = {}
+            if verbose:
+                io.tool_output("Installs file does not exist, creating new dictionary")
+
+        if str(key) not in installs:
+            if verbose:
+                io.tool_output(
+                    "First run for this version and executable, loading imports synchronously"
+                )
+            try:
+                load_slow_imports(swallow=False)
+            except Exception as err:
+                io.tool_error(str(err))
+                io.tool_output("Error loading required imports. Did you install aider properly?")
+                io.tool_output("https://aider.chat/docs/install/install.html")
+                sys.exit(1)
+
+            installs[str(key)] = True
+            installs_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(installs_file, "w") as f:
+                json.dump(installs, f, indent=4)
+            if verbose:
+                io.tool_output("Imports loaded and installs file updated")
+        else:
+            if verbose:
+                io.tool_output("Not first run, loading imports in background thread")
+            thread = threading.Thread(target=load_slow_imports)
+            thread.daemon = True
+            thread.start()
+    except Exception as e:
+        io.tool_warning(f"Error in checking imports: {e}")
+        if verbose:
+            io.tool_output(f"Full exception details: {traceback.format_exc()}")
+
+
+def load_slow_imports(swallow=True):
     # These imports are deferred in various ways to
     # improve startup time.
-    # This func is called in a thread to load them in the background
-    # while we wait for the user to type their first message.
+    # This func is called either synchronously or in a thread
+    # depending on whether it's been run before for this version and executable.
 
     try:
         import httpx  # noqa: F401
         import litellm  # noqa: F401
         import networkx  # noqa: F401
         import numpy  # noqa: F401
-    except Exception:
-        pass
+    except Exception as e:
+        if not swallow:
+            raise e
 
 
 if __name__ == "__main__":

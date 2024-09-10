@@ -93,6 +93,7 @@ class Coder:
     num_cache_warming_pings = 0
     suggest_shell_commands = True
     ignore_mentions = None
+    chat_language = None
 
     @classmethod
     def create(
@@ -260,7 +261,9 @@ class Coder:
         cache_prompts=False,
         num_cache_warming_pings=0,
         suggest_shell_commands=True,
+        chat_language=None,
     ):
+        self.chat_language = chat_language
         self.commit_before_message = []
         self.aider_commit_hashes = set()
         self.rejected_urls = set()
@@ -856,6 +859,9 @@ class Coder:
         self.cur_messages = []
 
     def get_user_language(self):
+        if self.chat_language:
+            return self.chat_language
+
         try:
             lang = locale.getlocale()[0]
             if lang:
@@ -917,10 +923,21 @@ class Coder:
         lazy_prompt = self.gpt_prompts.lazy_prompt if self.main_model.lazy else ""
         platform_text = self.get_platform_info()
 
+        if self.suggest_shell_commands:
+            shell_cmd_prompt = self.gpt_prompts.shell_cmd_prompt.format(platform=platform_text)
+            shell_cmd_reminder = self.gpt_prompts.shell_cmd_reminder.format(platform=platform_text)
+        else:
+            shell_cmd_prompt = self.gpt_prompts.no_shell_cmd_prompt.format(platform=platform_text)
+            shell_cmd_reminder = self.gpt_prompts.no_shell_cmd_reminder.format(
+                platform=platform_text
+            )
+
         prompt = prompt.format(
             fence=self.fence,
             lazy_prompt=lazy_prompt,
             platform=platform_text,
+            shell_cmd_prompt=shell_cmd_prompt,
+            shell_cmd_reminder=shell_cmd_reminder,
         )
         return prompt
 
