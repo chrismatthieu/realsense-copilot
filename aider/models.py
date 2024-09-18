@@ -77,6 +77,9 @@ class ModelSettings:
     max_tokens: Optional[int] = None
     cache_control: bool = False
     caches_by_default: bool = False
+    use_system_prompt: bool = True
+    use_temperature: bool = True
+    streaming: bool = True
 
 
 # https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
@@ -339,6 +342,19 @@ MODEL_SETTINGS = [
         weak_model_name="command-r-plus",
         use_repo_map=True,
     ),
+    # New Cohere models
+    ModelSettings(
+        "command-r-08-2024",
+        "whole",
+        weak_model_name="command-r-08-2024",
+        use_repo_map=True,
+    ),
+    ModelSettings(
+        "command-r-plus-08-2024",
+        "whole",
+        weak_model_name="command-r-plus-08-2024",
+        use_repo_map=True,
+    ),
     # Groq llama3
     ModelSettings(
         "groq/llama3-70b-8192",
@@ -411,6 +427,66 @@ MODEL_SETTINGS = [
         accepts_images=True,
         lazy=True,
         reminder="sys",
+    ),
+    ModelSettings(
+        "openai/o1-mini",
+        "whole",
+        weak_model_name="openai/gpt-4o-mini",
+        use_repo_map=True,
+        reminder="user",
+        use_system_prompt=False,
+        use_temperature=False,
+        streaming=False,
+    ),
+    ModelSettings(
+        "o1-mini",
+        "whole",
+        weak_model_name="gpt-4o-mini",
+        use_repo_map=True,
+        reminder="user",
+        use_system_prompt=False,
+        use_temperature=False,
+        streaming=False,
+    ),
+    ModelSettings(
+        "openai/o1-preview",
+        "diff",
+        weak_model_name="openai/gpt-4o-mini",
+        use_repo_map=True,
+        reminder="user",
+        use_system_prompt=False,
+        use_temperature=False,
+        streaming=False,
+    ),
+    ModelSettings(
+        "o1-preview",
+        "diff",
+        weak_model_name="gpt-4o-mini",
+        use_repo_map=True,
+        reminder="user",
+        use_system_prompt=False,
+        use_temperature=False,
+        streaming=False,
+    ),
+    ModelSettings(
+        "openrouter/openai/o1-mini",
+        "whole",
+        weak_model_name="openrouter/openai/gpt-4o-mini",
+        use_repo_map=True,
+        reminder="user",
+        use_system_prompt=False,
+        use_temperature=False,
+        streaming=False,
+    ),
+    ModelSettings(
+        "openrouter/openai/o1-preview",
+        "diff",
+        weak_model_name="openrouter/openai/gpt-4o-mini",
+        use_repo_map=True,
+        reminder="user",
+        use_system_prompt=False,
+        use_temperature=False,
+        streaming=False,
     ),
 ]
 

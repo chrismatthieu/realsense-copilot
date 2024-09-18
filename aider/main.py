@@ -300,6 +300,10 @@ def sanity_check_repo(repo, io):
     if not repo:
         return True
 
+    if not repo.repo.working_tree_dir:
+        io.tool_error("The git repo does not seem to have a working tree?")
+        return False
+
     try:
         repo.get_tracked_files()
         if not repo.git_repo_error:
@@ -401,6 +405,8 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             user_input_color=args.user_input_color,
             tool_output_color=args.tool_output_color,
             tool_error_color=args.tool_error_color,
+            assistant_output_color=args.assistant_output_color,
+            code_theme=args.code_theme,
             dry_run=args.dry_run,
             encoding=args.encoding,
             llm_history_file=args.llm_history_file,
@@ -570,6 +576,13 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if args.cache_prompts and args.map_refresh == "auto":
         args.map_refresh = "files"
 
+    if not main_model.streaming:
+        if args.stream:
+            io.tool_warning(
+                "Warning: Streaming is not supported by the selected model. Disabling streaming."
+            )
+        args.stream = False
+
     try:
         coder = Coder.create(
             main_model=main_model,
@@ -584,8 +597,6 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             dry_run=args.dry_run,
             map_tokens=args.map_tokens,
             verbose=args.verbose,
-            assistant_output_color=args.assistant_output_color,
-            code_theme=args.code_theme,
             stream=args.stream,
             use_git=args.git,
             restore_chat_history=args.restore_chat_history,
