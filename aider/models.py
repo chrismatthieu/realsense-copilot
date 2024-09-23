@@ -413,6 +413,23 @@ MODEL_SETTINGS = [
         max_tokens=8192,
     ),
     ModelSettings(
+        "deepseek-chat",
+        "diff",
+        use_repo_map=True,
+        examples_as_sys_msg=True,
+        reminder="sys",
+        max_tokens=8192,
+    ),
+    ModelSettings(
+        "deepseek-coder",
+        "diff",
+        use_repo_map=True,
+        examples_as_sys_msg=True,
+        reminder="sys",
+        caches_by_default=True,
+        max_tokens=8192,
+    ),
+    ModelSettings(
         "openrouter/deepseek/deepseek-coder",
         "diff",
         use_repo_map=True,
@@ -514,21 +531,28 @@ def get_model_info(model):
     if not litellm._lazy_module:
         cache_dir = Path.home() / ".aider" / "caches"
         cache_file = cache_dir / "model_prices_and_context_window.json"
-        cache_dir.mkdir(parents=True, exist_ok=True)
 
-        current_time = time.time()
-        cache_age = (
-            current_time - cache_file.stat().st_mtime if cache_file.exists() else float("inf")
-        )
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            use_cache = True
+        except OSError:
+            # If we can't create the cache directory, we'll skip using the cache
+            use_cache = False
 
-        if cache_age < 60 * 60 * 24:
-            try:
-                content = json.loads(cache_file.read_text())
-                res = get_model_flexible(model, content)
-                if res:
-                    return res
-            except Exception as ex:
-                print(str(ex))
+        if use_cache:
+            current_time = time.time()
+            cache_age = (
+                current_time - cache_file.stat().st_mtime if cache_file.exists() else float("inf")
+            )
+
+            if cache_age < 60 * 60 * 24:
+                try:
+                    content = json.loads(cache_file.read_text())
+                    res = get_model_flexible(model, content)
+                    if res:
+                        return res
+                except Exception as ex:
+                    print(str(ex))
 
         import requests
 
@@ -536,7 +560,12 @@ def get_model_info(model):
             response = requests.get(model_info_url, timeout=5)
             if response.status_code == 200:
                 content = response.json()
-                cache_file.write_text(json.dumps(content, indent=4))
+                if use_cache:
+                    try:
+                        cache_file.write_text(json.dumps(content, indent=4))
+                    except OSError:
+                        # If we can't write to the cache file, we'll just skip caching
+                        pass
                 res = get_model_flexible(model, content)
                 if res:
                     return res
@@ -902,20 +931,37 @@ def print_matching_models(io, search):
         io.tool_output(f'No models match "{search}".')
 
 
+def get_model_settings_as_yaml():
+    import yaml
+
+    model_settings_list = []
+    for ms in MODEL_SETTINGS:
+        model_settings_dict = {
+            field.name: getattr(ms, field.name) for field in fields(ModelSettings)
+        }
+        model_settings_list.append(model_settings_dict)
+
+    return yaml.dump(model_settings_list, default_flow_style=False)
+
+
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python models.py <model_name>")
+    if len(sys.argv) < 2:
+        print("Usage: python models.py <model_name> or python models.py --yaml")
         sys.exit(1)
 
-    model_name = sys.argv[1]
-    matching_models = fuzzy_match_models(model_name)
-
-    if matching_models:
-        print(f"Matching models for '{model_name}':")
-        for model in matching_models:
-            print(model)
+    if sys.argv[1] == "--yaml":
+        yaml_string = get_model_settings_as_yaml()
+        print(yaml_string)
     else:
-        print(f"No matching models found for '{model_name}'.")
+        model_name = sys.argv[1]
+        matching_models = fuzzy_match_models(model_name)
+
+        if matching_models:
+            print(f"Matching models for '{model_name}':")
+            for model in matching_models:
+                print(model)
+        else:
+            print(f"No matching models found for '{model_name}'.")
 
 
 if __name__ == "__main__":
