@@ -11,7 +11,7 @@ import git
 from dotenv import load_dotenv
 from prompt_toolkit.enums import EditingMode
 
-from aider import __version__, models, utils
+from aider import __version__, models, urls, utils
 from aider.args import get_parser
 from aider.coders import Coder
 from aider.commands import Commands, SwitchCoder
@@ -24,6 +24,23 @@ from aider.report import report_uncaught_exceptions
 from aider.versioncheck import check_version, install_from_main_branch, install_upgrade
 
 from .dump import dump  # noqa: F401
+
+
+def check_config_files_for_yes(config_files):
+    found = False
+    for config_file in config_files:
+        if Path(config_file).exists():
+            try:
+                with open(config_file, "r") as f:
+                    for line in f:
+                        if line.strip().startswith("yes:"):
+                            print("Configuration error detected.")
+                            print(f"The file {config_file} contains a line starting with 'yes:'")
+                            print("Please replace 'yes:' with 'yes-always:' in this file.")
+                            found = True
+            except Exception:
+                pass
+    return found
 
 
 def get_git_root():
@@ -274,12 +291,14 @@ def load_dotenv_files(git_root, dotenv_fname, encoding="utf-8"):
     )
     loaded = []
     for fname in dotenv_files:
-        if Path(fname).exists():
-            try:
+        try:
+            if Path(fname).exists():
                 load_dotenv(fname, override=True, encoding=encoding)
                 loaded.append(fname)
-            except Exception as e:
-                print(f"Error loading {fname}: {e}")
+        except OSError as e:
+            print(f"OSError loading {fname}: {e}")
+        except Exception as e:
+            print(f"Error loading {fname}: {e}")
     return loaded
 
 
@@ -324,7 +343,7 @@ def sanity_check_repo(repo, io):
         io.tool_error("Aider only works with git repos with version number 1 or 2.")
         io.tool_output("You may be able to convert your repo: git update-index --index-version=2")
         io.tool_output("Or run aider --no-git to proceed without using git.")
-        io.tool_output("https://github.com/paul-gauthier/aider/issues/211")
+        io.tool_output(urls.git_index_version)
         return False
 
     io.tool_error("Unable to read git repository, it may be corrupt?")
@@ -345,7 +364,12 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
 
     conf_fname = Path(".aider.conf.yml")
 
-    default_config_files = [conf_fname.resolve()]  # CWD
+    default_config_files = []
+    try:
+        default_config_files += [conf_fname.resolve()]  # CWD
+    except OSError:
+        pass
+
     if git_root:
         git_conf = Path(git_root) / conf_fname  # git root
         if git_conf not in default_config_files:
@@ -354,7 +378,13 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     default_config_files = list(map(str, default_config_files))
 
     parser = get_parser(default_config_files, git_root)
-    args, unknown = parser.parse_known_args(argv)
+    try:
+        args, unknown = parser.parse_known_args(argv)
+    except AttributeError as e:
+        if all(word in str(e) for word in ["bool", "object", "has", "no", "attribute", "strip"]):
+            if check_config_files_for_yes(default_config_files):
+                return 1
+        raise e
 
     if args.verbose:
         print("Config files search order, if no --config:")
@@ -365,6 +395,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     default_config_files.reverse()
 
     parser = get_parser(default_config_files, git_root)
+
     args, unknown = parser.parse_known_args(argv)
 
     # Load the .env file specified in the arguments
@@ -376,8 +407,10 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if not args.verify_ssl:
         import httpx
 
+        os.environ["SSL_VERIFY"] = ""
         litellm._load_litellm()
         litellm._lazy_module.client_session = httpx.Client(verify=False)
+        litellm._lazy_module.aclient_session = httpx.AsyncClient(verify=False)
 
     if args.dark_mode:
         args.user_input_color = "#32FF32"
@@ -393,22 +426,27 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         args.assistant_output_color = "blue"
         args.code_theme = "default"
 
-    if return_coder and args.yes is None:
-        args.yes = True
+    if return_coder and args.yes_always is None:
+        args.yes_always = True
 
     editing_mode = EditingMode.VI if args.vim else EditingMode.EMACS
 
     def get_io(pretty):
         return InputOutput(
             pretty,
-            args.yes,
+            args.yes_always,
             args.input_history_file,
             args.chat_history_file,
             input=input,
             output=output,
             user_input_color=args.user_input_color,
             tool_output_color=args.tool_output_color,
+            tool_warning_color=args.tool_warning_color,
             tool_error_color=args.tool_error_color,
+            completion_menu_color=args.completion_menu_color,
+            completion_menu_bg_color=args.completion_menu_bg_color,
+            completion_menu_current_color=args.completion_menu_current_color,
+            completion_menu_current_bg_color=args.completion_menu_current_bg_color,
             assistant_output_color=args.assistant_output_color,
             code_theme=args.code_theme,
             dry_run=args.dry_run,
@@ -525,7 +563,12 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         if os.environ.get("ANTHROPIC_API_KEY"):
             args.model = "claude-3-5-sonnet-20240620"
 
-    main_model = models.Model(args.model, weak_model=args.weak_model)
+    main_model = models.Model(
+        args.model,
+        weak_model=args.weak_model,
+        editor_model=args.editor_model,
+        editor_edit_format=args.editor_edit_format,
+    )
 
     if args.verbose:
         io.tool_output("Model info:")
@@ -565,8 +608,9 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         except FileNotFoundError:
             pass
 
-    if not sanity_check_repo(repo, io):
-        return 1
+    if not args.skip_sanity_check_repo:
+        if not sanity_check_repo(repo, io):
+            return 1
 
     commands = Commands(
         io, None, verify_ssl=args.verify_ssl, args=args, parser=parser, verbose=args.verbose
@@ -583,7 +627,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if not main_model.streaming:
         if args.stream:
             io.tool_warning(
-                "Warning: Streaming is not supported by the selected model. Disabling streaming."
+                f"Warning: Streaming is not supported by {main_model.name}. Disabling streaming."
             )
         args.stream = False
 

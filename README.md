@@ -14,7 +14,7 @@ Realsense works best with GPT-4o & Claude 3.5 Sonnet and can
 You can get started quickly like this:
 
 ```
-$ pip install realsense-copilot
+$ python -m pip install -U realsense-copilot
 
 # Change directory into a git repo
 cd /to/your/git/repo

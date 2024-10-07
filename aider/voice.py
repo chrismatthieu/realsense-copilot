@@ -3,18 +3,24 @@ import os
 import queue
 import tempfile
 import time
+import warnings
+
+from prompt_toolkit.shortcuts import prompt
 
 from aider.llm import litellm
+
+from .dump import dump  # noqa: F401
+
+warnings.filterwarnings(
+    "ignore", message="Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work"
+)
+
+from pydub import AudioSegment  # noqa
 
 try:
     import soundfile as sf
 except (OSError, ModuleNotFoundError):
     sf = None
-
-from prompt_toolkit.shortcuts import prompt
-from pydub import AudioSegment
-
-from .dump import dump  # noqa: F401
 
 
 class SoundDeviceError(Exception):
