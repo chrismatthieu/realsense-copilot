@@ -8,6 +8,7 @@ import traceback
 from pathlib import Path
 
 import git
+import importlib_resources
 from dotenv import load_dotenv
 from prompt_toolkit.enums import EditingMode
 
@@ -57,7 +58,7 @@ def guessed_wrong_repo(io, git_root, fnames, git_dname):
 
     try:
         check_repo = Path(GitRepo(io, fnames, git_dname).root).resolve()
-    except FileNotFoundError:
+    except (OSError,) + ANY_GIT_ERROR:
         return
 
     # we had no guess, rely on the "true" repo result
@@ -131,32 +132,39 @@ def check_gitignore(git_root, io, ask=True):
 
     try:
         repo = git.Repo(git_root)
-        if repo.ignored(".aider"):
+        if repo.ignored(".aider") and repo.ignored(".env"):
             return
     except ANY_GIT_ERROR:
         pass
 
-    pat = ".aider*"
+    patterns = [".aider*", ".env"]
+    patterns_to_add = []
 
     gitignore_file = Path(git_root) / ".gitignore"
     if gitignore_file.exists():
         content = io.read_text(gitignore_file)
         if content is None:
             return
-        if pat in content.splitlines():
-            return
+        existing_lines = content.splitlines()
+        for pat in patterns:
+            if pat not in existing_lines:
+                patterns_to_add.append(pat)
     else:
         content = ""
+        patterns_to_add = patterns
 
-    if ask and not io.confirm_ask(f"Add {pat} to .gitignore (recommended)?"):
+    if not patterns_to_add:
+        return
+
+    if ask and not io.confirm_ask(f"Add {', '.join(patterns_to_add)} to .gitignore (recommended)?"):
         return
 
     if content and not content.endswith("\n"):
         content += "\n"
-    content += pat + "\n"
+    content += "\n".join(patterns_to_add) + "\n"
     io.write_text(gitignore_file, content)
 
-    io.tool_output(f"Added {pat} to .gitignore")
+    io.tool_output(f"Added {', '.join(patterns_to_add)} to .gitignore")
 
 
 def check_streamlit_install(io):
@@ -234,16 +242,23 @@ def parse_lint_cmds(lint_cmds, io):
     return res
 
 
-def generate_search_path_list(default_fname, git_root, command_line_file):
+def generate_search_path_list(default_file, git_root, command_line_file):
     files = []
-    default_file = Path(default_fname)
     files.append(Path.home() / default_file)  # homedir
     if git_root:
         files.append(Path(git_root) / default_file)  # git root
-    files.append(default_file.resolve())
+    files.append(default_file)
     if command_line_file:
         files.append(command_line_file)
-    files = [Path(fn).resolve() for fn in files]
+
+    resolved_files = []
+    for fn in files:
+        try:
+            resolved_files.append(Path(fn).resolve())
+        except OSError:
+            pass
+
+    files = resolved_files
     files.reverse()
     uniq = []
     for fn in files:
@@ -306,6 +321,10 @@ def register_litellm_models(git_root, model_metadata_fname, io, verbose=False):
     model_metatdata_files = generate_search_path_list(
         ".aider.model.metadata.json", git_root, model_metadata_fname
     )
+
+    # Add the resource file path
+    resource_metadata = importlib_resources.files("aider.resources").joinpath("model-metadata.json")
+    model_metatdata_files.append(str(resource_metadata))
 
     try:
         model_metadata_files_loaded = models.register_litellm_models(model_metatdata_files)
@@ -453,6 +472,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             encoding=args.encoding,
             llm_history_file=args.llm_history_file,
             editingmode=editing_mode,
+            fancy_input=args.fancy_input,
         )
 
     io = get_io(args.pretty)
@@ -561,7 +581,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if not args.model:
         args.model = "gpt-4o-2024-08-06"
         if os.environ.get("ANTHROPIC_API_KEY"):
-            args.model = "claude-3-5-sonnet-20240620"
+            args.model = "claude-3-5-sonnet-20241022"
 
     main_model = models.Model(
         args.model,
